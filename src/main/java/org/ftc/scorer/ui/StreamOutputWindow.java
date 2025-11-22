@@ -1,5 +1,7 @@
 package org.ftc.scorer.ui;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -12,6 +14,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import org.ftc.scorer.model.Match;
 import org.ftc.scorer.service.MatchTimer;
 
@@ -346,10 +349,10 @@ public class StreamOutputWindow {
     
     private void startScoreUpdater() {
         // Update UI every 100ms
-        javafx.animation.Timeline timeline = new javafx.animation.Timeline(
-            new javafx.animation.KeyFrame(javafx.util.Duration.millis(100), e -> updateScores())
+        Timeline timeline = new Timeline(
+            new KeyFrame(Duration.millis(100), e -> updateScores())
         );
-        timeline.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+        timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
     }
     
@@ -450,9 +453,9 @@ public class StreamOutputWindow {
         motifLabel.setTextFill(Color.BLACK);
         
         // Remove highlight after 10 seconds
-        javafx.animation.Timeline timeline = new javafx.animation.Timeline(
-            new javafx.animation.KeyFrame(
-                javafx.util.Duration.seconds(10),
+        Timeline timeline = new Timeline(
+            new KeyFrame(
+                Duration.seconds(10),
                 e -> {
                     motifLabel.setStyle("");
                     motifLabel.setTextFill(Color.rgb(100, 100, 100));
