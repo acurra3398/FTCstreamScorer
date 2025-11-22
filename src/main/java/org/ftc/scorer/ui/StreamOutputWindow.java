@@ -163,6 +163,8 @@ public class StreamOutputWindow {
         section.setAlignment(Pos.CENTER_RIGHT);
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
+        // Add colored background for red alliance section (solid color, no opacity)
+        section.setStyle("-fx-background-color: rgb(211, 47, 47);");
         
         Color redColor = Color.rgb(211, 47, 47);
         
@@ -224,6 +226,8 @@ public class StreamOutputWindow {
         section.setAlignment(Pos.CENTER_LEFT);
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
+        // Add colored background for blue alliance section (solid color, no opacity)
+        section.setStyle("-fx-background-color: rgb(25, 118, 210);");
         
         Color blueColor = Color.rgb(25, 118, 210);
         
@@ -424,6 +428,7 @@ public class StreamOutputWindow {
     
     /**
      * Update the score bar layout based on match mode
+     * IMPORTANT: This method recreates sections, so label references must be re-established
      */
     public void updateScoreBarForMode() {
         // Rebuild score bar for solo mode
@@ -434,7 +439,15 @@ public class StreamOutputWindow {
             HBox redSection = createRedScoreSection();
             VBox centerBox = createCenterInfoBox();
             
-            // Create grey placeholder for blue
+            // Create grey placeholder for blue - reset blue label references to null
+            blueClassifiedLabel = null;
+            blueOverflowLabel = null;
+            blueMotifLabel = null;
+            blueLeaveLabel = null;
+            blueBaseLabel = null;
+            blueFoulLabel = null;
+            blueTeamLabel = null;
+            
             HBox blueSection = new HBox();
             blueSection.setAlignment(Pos.CENTER);
             blueSection.setPadding(new Insets(10));
@@ -447,6 +460,7 @@ public class StreamOutputWindow {
             scoreBar.getChildren().addAll(redSection, centerBox, blueSection);
         } else {
             // Traditional mode: red, center, blue
+            // Note: createRedScoreSection() and createBlueScoreSection() already update the label references
             HBox redSection = createRedScoreSection();
             VBox centerBox = createCenterInfoBox();
             HBox blueSection = createBlueScoreSection();
@@ -530,15 +544,16 @@ public class StreamOutputWindow {
         int redPatternPts = redPattern * 2;
         int redLeavePts = redLeave * 3;
         
-        redClassifiedLabel.setText(String.valueOf(redClassifiedPts));
-        redOverflowLabel.setText(String.valueOf(redOverflowPts));
-        redMotifLabel.setText(String.valueOf(redPatternPts));
-        redLeaveLabel.setText(String.valueOf(redLeavePts));
-        redBaseLabel.setText(String.valueOf(redBasePts));
-        redFoulLabel.setText(String.valueOf(redFoulPts));
+        // Update red labels if they exist
+        if (redClassifiedLabel != null) redClassifiedLabel.setText(String.valueOf(redClassifiedPts));
+        if (redOverflowLabel != null) redOverflowLabel.setText(String.valueOf(redOverflowPts));
+        if (redMotifLabel != null) redMotifLabel.setText(String.valueOf(redPatternPts));
+        if (redLeaveLabel != null) redLeaveLabel.setText(String.valueOf(redLeavePts));
+        if (redBaseLabel != null) redBaseLabel.setText(String.valueOf(redBasePts));
+        if (redFoulLabel != null) redFoulLabel.setText(String.valueOf(redFoulPts));
         
         String redTeam = match.getRedTeamsDisplay();
-        redTeamLabel.setText(redTeam);
+        if (redTeamLabel != null) redTeamLabel.setText(redTeam);
         
         // Blue Alliance breakdown
         int blueClassified = match.getBlueScore().getAutoClassified() + match.getBlueScore().getTeleopClassified();
@@ -558,15 +573,16 @@ public class StreamOutputWindow {
         int bluePatternPts = bluePattern * 2;
         int blueLeavePts = blueLeave * 3;
         
-        blueClassifiedLabel.setText(String.valueOf(blueClassifiedPts));
-        blueOverflowLabel.setText(String.valueOf(blueOverflowPts));
-        blueMotifLabel.setText(String.valueOf(bluePatternPts));
-        blueLeaveLabel.setText(String.valueOf(blueLeavePts));
-        blueBaseLabel.setText(String.valueOf(blueBasePts));
-        blueFoulLabel.setText(String.valueOf(blueFoulPts));
+        // Update blue labels if they exist (may be null in solo mode)
+        if (blueClassifiedLabel != null) blueClassifiedLabel.setText(String.valueOf(blueClassifiedPts));
+        if (blueOverflowLabel != null) blueOverflowLabel.setText(String.valueOf(blueOverflowPts));
+        if (blueMotifLabel != null) blueMotifLabel.setText(String.valueOf(bluePatternPts));
+        if (blueLeaveLabel != null) blueLeaveLabel.setText(String.valueOf(blueLeavePts));
+        if (blueBaseLabel != null) blueBaseLabel.setText(String.valueOf(blueBasePts));
+        if (blueFoulLabel != null) blueFoulLabel.setText(String.valueOf(blueFoulPts));
         
         String blueTeam = match.getBlueTeamsDisplay();
-        blueTeamLabel.setText(blueTeam);
+        if (blueTeamLabel != null) blueTeamLabel.setText(blueTeam);
     }
     
     public void updateWebcamFrame(Image frame) {
