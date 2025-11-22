@@ -35,8 +35,8 @@ public class StreamOutputWindow {
     private Label teamNumbersLabel;
     
     // Breakdown labels for detailed scoring
-    private Label redClassifiedLabel, redOverflowLabel, redMotifLabel, redLeaveLabel;
-    private Label blueClassifiedLabel, blueOverflowLabel, blueMotifLabel, blueLeaveLabel;
+    private Label redClassifiedLabel, redOverflowLabel, redMotifLabel, redLeaveLabel, redBaseLabel, redFoulLabel;
+    private Label blueClassifiedLabel, blueOverflowLabel, blueMotifLabel, blueLeaveLabel, blueBaseLabel, blueFoulLabel;
     private Label redTeamLabel, blueTeamLabel;
     
     private StackPane root;
@@ -107,7 +107,7 @@ public class StreamOutputWindow {
         HBox bar = new HBox(0);
         bar.setAlignment(Pos.CENTER);
         bar.setPadding(new Insets(0));
-        bar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
+        bar.setStyle("-fx-background-color: rgb(0, 0, 0);"); // Solid black, non-transparent
         bar.setPrefHeight(120);
         
         // Left section: Red Alliance scores (from center outward)
@@ -156,7 +156,7 @@ public class StreamOutputWindow {
     
     /**
      * Create Red Alliance score section - from center outward
-     * Order: [Total Score] [Classified] [Overflow] [Pattern] [Leave] [Team Numbers]
+     * Layout: [Team] [Fouls] [Pattern] [Leave+Base Stacked] [Classified+Overflow Stacked] [Total Score]
      */
     private HBox createRedScoreSection() {
         HBox section = new HBox(8);
@@ -164,37 +164,46 @@ public class StreamOutputWindow {
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
         
+        Color redColor = Color.rgb(211, 47, 47);
+        
         // Team info (leftmost)
-        VBox teamBox = createInfoBox("RED", "----", Color.rgb(211, 47, 47), 80);
+        VBox teamBox = createInfoBox("RED", "----", redColor, 80);
         redTeamLabel = (Label) ((VBox)teamBox.getChildren().get(0)).getChildren().get(1);
         
-        // Leave points
-        VBox leaveBox = createInfoBox("🚀", "0", Color.rgb(211, 47, 47), 60);
-        redLeaveLabel = (Label) ((VBox)leaveBox.getChildren().get(0)).getChildren().get(1);
+        // Fouls (opponent's fouls give us points)
+        VBox foulsBox = createInfoBox("⚠️", "0", redColor, 70);
+        redFoulLabel = (Label) ((VBox)foulsBox.getChildren().get(0)).getChildren().get(1);
         
         // Pattern points
-        VBox patternBox = createInfoBox("🔷", "0", Color.rgb(211, 47, 47), 60);
+        VBox patternBox = createInfoBox("🔷", "0", redColor, 60);
         redMotifLabel = (Label) ((VBox)patternBox.getChildren().get(0)).getChildren().get(1);
         
-        // Overflow points
-        VBox overflowBox = createInfoBox("📦", "0", Color.rgb(211, 47, 47), 60);
-        redOverflowLabel = (Label) ((VBox)overflowBox.getChildren().get(0)).getChildren().get(1);
+        // Leave + Base (stacked)
+        VBox leaveBaseBox = createStackedInfoBox("🚀", "0", "🏠", "0", redColor, 70);
+        VBox leaveSection = (VBox) leaveBaseBox.getChildren().get(0);
+        VBox baseSection = (VBox) leaveBaseBox.getChildren().get(2);
+        redLeaveLabel = (Label) leaveSection.getChildren().get(1);
+        redBaseLabel = (Label) baseSection.getChildren().get(1);
         
-        // Classified points
-        VBox classifiedBox = createInfoBox("🎯", "0", Color.rgb(211, 47, 47), 60);
-        redClassifiedLabel = (Label) ((VBox)classifiedBox.getChildren().get(0)).getChildren().get(1);
+        // Classified + Overflow (stacked)
+        VBox classifiedOverflowBox = createStackedInfoBox("🎯", "0", "📦", "0", redColor, 70);
+        VBox classifiedSection = (VBox) classifiedOverflowBox.getChildren().get(0);
+        VBox overflowSection = (VBox) classifiedOverflowBox.getChildren().get(2);
+        redClassifiedLabel = (Label) classifiedSection.getChildren().get(1);
+        redOverflowLabel = (Label) overflowSection.getChildren().get(1);
         
         // Total score (rightmost, closest to center)
-        VBox totalBox = createTotalScoreBox("0", Color.rgb(211, 47, 47));
+        VBox totalBox = createTotalScoreBox("0", redColor);
         redScoreLabel = (Label) ((VBox)totalBox.getChildren().get(0)).getChildren().get(0);
         
-        section.getChildren().addAll(teamBox, leaveBox, patternBox, overflowBox, classifiedBox, totalBox);
+        section.getChildren().addAll(teamBox, foulsBox, patternBox, leaveBaseBox, classifiedOverflowBox, totalBox);
         
         return section;
     }
     
     /**
      * Create Blue Alliance score section - from center outward
+     * Layout: [Total Score] [Classified+Overflow Stacked] [Leave+Base Stacked] [Pattern] [Fouls] [Team]
      */
     private HBox createBlueScoreSection() {
         HBox section = new HBox(8);
@@ -202,31 +211,39 @@ public class StreamOutputWindow {
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
         
+        Color blueColor = Color.rgb(25, 118, 210);
+        
         // Total score (leftmost, closest to center)
-        VBox totalBox = createTotalScoreBox("0", Color.rgb(25, 118, 210));
+        VBox totalBox = createTotalScoreBox("0", blueColor);
         blueScoreLabel = (Label) ((VBox)totalBox.getChildren().get(0)).getChildren().get(0);
         
-        // Classified points
-        VBox classifiedBox = createInfoBox("🎯", "0", Color.rgb(25, 118, 210), 60);
-        blueClassifiedLabel = (Label) ((VBox)classifiedBox.getChildren().get(0)).getChildren().get(1);
+        // Classified + Overflow (stacked)
+        VBox classifiedOverflowBox = createStackedInfoBox("🎯", "0", "📦", "0", blueColor, 70);
+        VBox blueClassifiedSection = (VBox) classifiedOverflowBox.getChildren().get(0);
+        VBox blueOverflowSection = (VBox) classifiedOverflowBox.getChildren().get(2);
+        blueClassifiedLabel = (Label) blueClassifiedSection.getChildren().get(1);
+        blueOverflowLabel = (Label) blueOverflowSection.getChildren().get(1);
         
-        // Overflow points
-        VBox overflowBox = createInfoBox("📦", "0", Color.rgb(25, 118, 210), 60);
-        blueOverflowLabel = (Label) ((VBox)overflowBox.getChildren().get(0)).getChildren().get(1);
+        // Leave + Base (stacked)
+        VBox leaveBaseBox = createStackedInfoBox("🚀", "0", "🏠", "0", blueColor, 70);
+        VBox blueLeaveSection = (VBox) leaveBaseBox.getChildren().get(0);
+        VBox blueBaseSection = (VBox) leaveBaseBox.getChildren().get(2);
+        blueLeaveLabel = (Label) blueLeaveSection.getChildren().get(1);
+        blueBaseLabel = (Label) blueBaseSection.getChildren().get(1);
         
         // Pattern points
-        VBox patternBox = createInfoBox("🔷", "0", Color.rgb(25, 118, 210), 60);
+        VBox patternBox = createInfoBox("🔷", "0", blueColor, 60);
         blueMotifLabel = (Label) ((VBox)patternBox.getChildren().get(0)).getChildren().get(1);
         
-        // Leave points
-        VBox leaveBox = createInfoBox("🚀", "0", Color.rgb(25, 118, 210), 60);
-        blueLeaveLabel = (Label) ((VBox)leaveBox.getChildren().get(0)).getChildren().get(1);
+        // Fouls (opponent's fouls give us points)
+        VBox foulsBox = createInfoBox("⚠️", "0", blueColor, 70);
+        blueFoulLabel = (Label) ((VBox)foulsBox.getChildren().get(0)).getChildren().get(1);
         
         // Team info (rightmost)
-        VBox teamBox = createInfoBox("BLUE", "----", Color.rgb(25, 118, 210), 80);
+        VBox teamBox = createInfoBox("BLUE", "----", blueColor, 80);
         blueTeamLabel = (Label) ((VBox)teamBox.getChildren().get(0)).getChildren().get(1);
         
-        section.getChildren().addAll(totalBox, classifiedBox, overflowBox, patternBox, leaveBox, teamBox);
+        section.getChildren().addAll(totalBox, classifiedOverflowBox, leaveBaseBox, patternBox, foulsBox, teamBox);
         
         return section;
     }
@@ -255,6 +272,56 @@ public class StreamOutputWindow {
         
         content.getChildren().addAll(labelText, valueText);
         box.getChildren().add(content);
+        
+        return box;
+    }
+    
+    /**
+     * Create a stacked info box with two categories (icon only)
+     */
+    private VBox createStackedInfoBox(String icon1, String value1, String icon2, String value2, Color color, int width) {
+        VBox box = new VBox(0);
+        box.setAlignment(Pos.CENTER);
+        box.setStyle("-fx-border-color: " + toRgbString(color) + "; -fx-border-width: 2;");
+        box.setMinWidth(width);
+        box.setMaxWidth(width);
+        
+        // Top section
+        VBox topSection = new VBox(2);
+        topSection.setAlignment(Pos.CENTER);
+        topSection.setPadding(new Insets(6, 8, 6, 8));
+        topSection.setStyle("-fx-background-color: white;");
+        
+        Label topLabel = new Label(icon1);
+        topLabel.setFont(Font.font(16));
+        
+        Label topValue = new Label(value1);
+        topValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        topValue.setTextFill(Color.BLACK);
+        
+        topSection.getChildren().addAll(topLabel, topValue);
+        
+        // Separator line
+        Region separator = new Region();
+        separator.setPrefHeight(1);
+        separator.setStyle("-fx-background-color: " + toRgbString(color) + ";");
+        
+        // Bottom section
+        VBox bottomSection = new VBox(2);
+        bottomSection.setAlignment(Pos.CENTER);
+        bottomSection.setPadding(new Insets(6, 8, 6, 8));
+        bottomSection.setStyle("-fx-background-color: white;");
+        
+        Label bottomLabel = new Label(icon2);
+        bottomLabel.setFont(Font.font(16));
+        
+        Label bottomValue = new Label(value2);
+        bottomValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        bottomValue.setTextFill(Color.BLACK);
+        
+        bottomSection.getChildren().addAll(bottomLabel, bottomValue);
+        
+        box.getChildren().addAll(topSection, separator, bottomSection);
         
         return box;
     }
@@ -394,6 +461,21 @@ public class StreamOutputWindow {
         int redPattern = match.getRedScore().getAutoPatternMatches() + match.getRedScore().getTeleopPatternMatches();
         int redLeave = (match.getRedScore().isRobot1Leave() ? 1 : 0) + (match.getRedScore().isRobot2Leave() ? 1 : 0);
         
+        // Calculate base points
+        int redBasePts = 0;
+        if (match.getRedScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) redBasePts += 5;
+        if (match.getRedScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) redBasePts += 10;
+        if (match.getRedScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) redBasePts += 5;
+        if (match.getRedScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) redBasePts += 10;
+        // Bonus if both fully in base
+        if (match.getRedScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE &&
+            match.getRedScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) {
+            redBasePts += 10;
+        }
+        
+        // Opponent fouls give points to this alliance (5 pts minor, 15 pts major)
+        int redFoulPts = match.getBlueScore().getMinorFouls() * 5 + match.getBlueScore().getMajorFouls() * 15;
+        
         // Calculate points for each category
         int redClassifiedPts = redClassified * 3;
         int redOverflowPts = redOverflow;
@@ -404,6 +486,8 @@ public class StreamOutputWindow {
         redOverflowLabel.setText(String.valueOf(redOverflowPts));
         redMotifLabel.setText(String.valueOf(redPatternPts));
         redLeaveLabel.setText(String.valueOf(redLeavePts));
+        redBaseLabel.setText(String.valueOf(redBasePts));
+        redFoulLabel.setText(String.valueOf(redFoulPts));
         
         String redTeam = match.getRedTeamsDisplay();
         redTeamLabel.setText(redTeam);
@@ -413,6 +497,21 @@ public class StreamOutputWindow {
         int blueOverflow = match.getBlueScore().getAutoOverflow() + match.getBlueScore().getTeleopOverflow();
         int bluePattern = match.getBlueScore().getAutoPatternMatches() + match.getBlueScore().getTeleopPatternMatches();
         int blueLeave = (match.getBlueScore().isRobot1Leave() ? 1 : 0) + (match.getBlueScore().isRobot2Leave() ? 1 : 0);
+        
+        // Calculate base points
+        int blueBasePts = 0;
+        if (match.getBlueScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) blueBasePts += 5;
+        if (match.getBlueScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) blueBasePts += 10;
+        if (match.getBlueScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) blueBasePts += 5;
+        if (match.getBlueScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) blueBasePts += 10;
+        // Bonus if both fully in base
+        if (match.getBlueScore().getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE &&
+            match.getBlueScore().getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) {
+            blueBasePts += 10;
+        }
+        
+        // Opponent fouls give points to this alliance (5 pts minor, 15 pts major)
+        int blueFoulPts = match.getRedScore().getMinorFouls() * 5 + match.getRedScore().getMajorFouls() * 15;
         
         // Calculate points for each category
         int blueClassifiedPts = blueClassified * 3;
@@ -424,6 +523,8 @@ public class StreamOutputWindow {
         blueOverflowLabel.setText(String.valueOf(blueOverflowPts));
         blueMotifLabel.setText(String.valueOf(bluePatternPts));
         blueLeaveLabel.setText(String.valueOf(blueLeavePts));
+        blueBaseLabel.setText(String.valueOf(blueBasePts));
+        blueFoulLabel.setText(String.valueOf(blueFoulPts));
         
         String blueTeam = match.getBlueTeamsDisplay();
         blueTeamLabel.setText(blueTeam);
