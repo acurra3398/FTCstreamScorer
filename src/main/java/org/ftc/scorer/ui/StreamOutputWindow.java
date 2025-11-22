@@ -28,7 +28,7 @@ public class StreamOutputWindow {
     private Label blueScoreLabel;
     private Label timerLabel;
     private Label phaseLabel;
-    private Label matchNumberLabel;
+    private Label teamNumbersLabel;
     
     private StackPane root;
     
@@ -90,10 +90,12 @@ public class StreamOutputWindow {
         topBar.setPadding(new Insets(10, 20, 10, 20));
         topBar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 10;");
         
-        // Match number
-        matchNumberLabel = new Label("Match: " + match.getMatchNumber());
-        matchNumberLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        matchNumberLabel.setTextFill(Color.WHITE);
+        // Team numbers
+        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
+        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+        teamNumbersLabel = new Label("Red: " + redTeam + " vs Blue: " + blueTeam);
+        teamNumbersLabel.setFont(Font.font("Arial", FontWeight.BOLD, 20));
+        teamNumbersLabel.setTextFill(Color.WHITE);
         
         // Timer
         timerLabel = new Label("2:30");
@@ -105,7 +107,7 @@ public class StreamOutputWindow {
         phaseLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
         phaseLabel.setTextFill(Color.YELLOW);
         
-        topBar.getChildren().addAll(matchNumberLabel, timerLabel, phaseLabel);
+        topBar.getChildren().addAll(teamNumbersLabel, timerLabel, phaseLabel);
         
         return topBar;
     }
@@ -169,11 +171,15 @@ public class StreamOutputWindow {
     }
     
     private void updateScores() {
-        redScoreLabel.setText(String.valueOf(match.getRedScore().calculateTotalScore()));
-        blueScoreLabel.setText(String.valueOf(match.getBlueScore().calculateTotalScore()));
+        // Use match methods which include opponent penalties
+        redScoreLabel.setText(String.valueOf(match.getRedTotalScore()));
+        blueScoreLabel.setText(String.valueOf(match.getBlueTotalScore()));
         timerLabel.setText(matchTimer.getTimeString());
         phaseLabel.setText(matchTimer.currentPhaseProperty().get());
-        matchNumberLabel.setText("Match: " + match.getMatchNumber());
+        
+        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
+        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+        teamNumbersLabel.setText("Red: " + redTeam + " vs Blue: " + blueTeam);
     }
     
     public void updateWebcamFrame(Image frame) {

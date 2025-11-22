@@ -39,6 +39,8 @@ public class MatchTimer {
             timeline.stop();
         }
         
+        // MOTIF should be manually randomized before match start (more realistic)
+        
         match.setState(Match.MatchState.AUTONOMOUS);
         match.setStartTime(System.currentTimeMillis());
         totalSeconds = 0;
@@ -95,7 +97,9 @@ public class MatchTimer {
                 currentPhase.set("FINISHED");
                 secondsRemaining.set(0);
                 audioService.playEndMatch();
-                audioService.playResults();
+                
+                // Results sound will be played manually when breakdown button is pressed
+                
                 stopMatch();
             }
         }

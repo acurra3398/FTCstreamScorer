@@ -15,8 +15,8 @@ import org.ftc.scorer.webcam.WebcamService;
 import java.util.List;
 
 /**
- * Control window for scoring interface
- * Single-person operation with easy-to-use controls
+ * Control window for DECODE scoring interface
+ * Official 2025-2026 FTC game rules
  */
 public class ControlWindow {
     private final Stage stage;
@@ -24,46 +24,39 @@ public class ControlWindow {
     private final MatchTimer matchTimer;
     private final WebcamService webcamService;
     private final StreamOutputWindow streamWindow;
+    private final org.ftc.scorer.service.AudioService audioService;
+    
+    // Team input
+    private TextField redTeamField;
+    private TextField blueTeamField;
+    
+    // MOTIF selector
+    private ComboBox<DecodeScore.MotifType> motifSelector;
     
     // Red Alliance Controls
-    private Spinner<Integer> redAutoClassified;
-    private Spinner<Integer> redAutoOverflow;
-    private Spinner<Integer> redTeleopClassified;
-    private Spinner<Integer> redTeleopOverflow;
-    private Spinner<Integer> redTeleopDepot;
-    private ChoiceBox<DecodeScore.RobotPosition> redRobot1Auto;
-    private ChoiceBox<DecodeScore.RobotPosition> redRobot2Auto;
-    private ChoiceBox<DecodeScore.RobotPosition> redRobot1Teleop;
-    private ChoiceBox<DecodeScore.RobotPosition> redRobot2Teleop;
-    private Spinner<Integer> redMajorFouls;
-    private Spinner<Integer> redMinorFouls;
+    private CheckBox redRobot1Leave, redRobot2Leave;
+    private Spinner<Integer> redAutoClassified, redAutoOverflow, redAutoPattern;
+    private Spinner<Integer> redTeleopClassified, redTeleopOverflow, redTeleopDepot, redTeleopPattern;
+    private ComboBox<DecodeScore.BaseStatus> redRobot1Base, redRobot2Base;
+    private Spinner<Integer> redMajorFouls, redMinorFouls;
     
     // Blue Alliance Controls (mirrored)
-    private Spinner<Integer> blueAutoClassified;
-    private Spinner<Integer> blueAutoOverflow;
-    private Spinner<Integer> blueTeleopClassified;
-    private Spinner<Integer> blueTeleopOverflow;
-    private Spinner<Integer> blueTeleopDepot;
-    private ChoiceBox<DecodeScore.RobotPosition> blueRobot1Auto;
-    private ChoiceBox<DecodeScore.RobotPosition> blueRobot2Auto;
-    private ChoiceBox<DecodeScore.RobotPosition> blueRobot1Teleop;
-    private ChoiceBox<DecodeScore.RobotPosition> blueRobot2Teleop;
-    private Spinner<Integer> blueMajorFouls;
-    private Spinner<Integer> blueMinorFouls;
+    private CheckBox blueRobot1Leave, blueRobot2Leave;
+    private Spinner<Integer> blueAutoClassified, blueAutoOverflow, blueAutoPattern;
+    private Spinner<Integer> blueTeleopClassified, blueTeleopOverflow, blueTeleopDepot, blueTeleopPattern;
+    private ComboBox<DecodeScore.BaseStatus> blueRobot1Base, blueRobot2Base;
+    private Spinner<Integer> blueMajorFouls, blueMinorFouls;
     
     // Match controls
-    private TextField matchNumberField;
-    private Button startButton;
-    private Button pauseButton;
-    private Button resetButton;
+    private Button startButton, pauseButton, resetButton;
     private ComboBox<String> webcamSelector;
-    private Label statusLabel;
     
-    public ControlWindow(Match match, MatchTimer matchTimer, WebcamService webcamService, StreamOutputWindow streamWindow) {
+    public ControlWindow(Match match, MatchTimer matchTimer, WebcamService webcamService, StreamOutputWindow streamWindow, org.ftc.scorer.service.AudioService audioService) {
         this.match = match;
         this.matchTimer = matchTimer;
         this.webcamService = webcamService;
         this.streamWindow = streamWindow;
+        this.audioService = audioService;
         this.stage = new Stage();
         
         initializeUI();
@@ -74,19 +67,15 @@ public class ControlWindow {
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(15));
         
-        // Top: Match controls
+        // Top: Match controls and MOTIF
         VBox topSection = createMatchControls();
         root.setTop(topSection);
         
-        // Center: Scoring controls
+        // Center: Scoring controls (Red and Blue)
         HBox centerSection = createScoringControls();
         root.setCenter(centerSection);
         
-        // Bottom: Status
-        HBox bottomSection = createStatusBar();
-        root.setBottom(bottomSection);
-        
-        Scene scene = new Scene(root, 1200, 800);
+        Scene scene = new Scene(root, 1400, 900);
         stage.setScene(scene);
         stage.setTitle("FTC DECODE Scorer - Control Panel");
         
@@ -101,17 +90,43 @@ public class ControlWindow {
         box.setPadding(new Insets(10));
         box.setStyle("-fx-background-color: #f0f0f0; -fx-background-radius: 5;");
         
-        Label title = new Label("Match Control");
+        Label title = new Label("Match Control - DECODE 2025-2026");
         title.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
         
         HBox controls = new HBox(15);
         controls.setAlignment(Pos.CENTER_LEFT);
         
-        // Match number
-        Label matchLabel = new Label("Match #:");
-        matchNumberField = new TextField(match.getMatchNumber());
-        matchNumberField.setPrefWidth(100);
-        matchNumberField.textProperty().addListener((obs, old, newVal) -> match.setMatchNumber(newVal));
+        // Team numbers
+        Label redTeamLabel = new Label("Red Team #:");
+        redTeamField = new TextField(match.getRedTeamNumber());
+        redTeamField.setPrefWidth(80);
+        redTeamField.setPromptText("0000");
+        redTeamField.textProperty().addListener((obs, old, newVal) -> match.setRedTeamNumber(newVal));
+        
+        Label blueTeamLabel = new Label("Blue Team #:");
+        blueTeamField = new TextField(match.getBlueTeamNumber());
+        blueTeamField.setPrefWidth(80);
+        blueTeamField.setPromptText("0000");
+        blueTeamField.textProperty().addListener((obs, old, newVal) -> match.setBlueTeamNumber(newVal));
+        
+        // MOTIF selector and randomizer
+        Label motifLabel = new Label("MOTIF:");
+        motifSelector = new ComboBox<>();
+        motifSelector.getItems().addAll(DecodeScore.MotifType.values());
+        motifSelector.setValue(DecodeScore.MotifType.PPG);
+        motifSelector.setOnAction(e -> {
+            match.getRedScore().setMotif(motifSelector.getValue());
+            match.getBlueScore().setMotif(motifSelector.getValue());
+        });
+        
+        Button randomizeMotifButton = new Button("🎲 Randomize MOTIF");
+        randomizeMotifButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
+        randomizeMotifButton.setOnAction(e -> {
+            DecodeScore.MotifType randomMotif = DecodeScore.MotifType.randomize();
+            motifSelector.setValue(randomMotif);
+            match.getRedScore().setMotif(randomMotif);
+            match.getBlueScore().setMotif(randomMotif);
+        });
         
         // Webcam selector
         Label webcamLabel = new Label("Webcam:");
@@ -157,10 +172,16 @@ public class ControlWindow {
         Button showStreamButton = new Button("Show Stream Window");
         showStreamButton.setOnAction(e -> streamWindow.show());
         
+        Button showBreakdownButton = new Button("📊 Score Breakdown");
+        showBreakdownButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
+        showBreakdownButton.setOnAction(e -> showScoreBreakdown());
+        
         controls.getChildren().addAll(
-            matchLabel, matchNumberField,
+            redTeamLabel, redTeamField,
+            blueTeamLabel, blueTeamField,
+            motifLabel, motifSelector, randomizeMotifButton,
             webcamLabel, webcamSelector,
-            startButton, pauseButton, resetButton, showStreamButton
+            startButton, pauseButton, resetButton, showStreamButton, showBreakdownButton
         );
         
         box.getChildren().addAll(title, controls);
@@ -169,273 +190,456 @@ public class ControlWindow {
     
     private HBox createScoringControls() {
         HBox box = new HBox(20);
-        box.setPadding(new Insets(15));
         box.setAlignment(Pos.TOP_CENTER);
         
-        VBox redAlliance = createAllianceControls("RED ALLIANCE", true);
-        VBox blueAlliance = createAllianceControls("BLUE ALLIANCE", false);
+        // Red Alliance
+        VBox redAlliance = createAlliancePanel("RED ALLIANCE", true);
+        
+        // Blue Alliance
+        VBox blueAlliance = createAlliancePanel("BLUE ALLIANCE", false);
         
         box.getChildren().addAll(redAlliance, blueAlliance);
         return box;
     }
     
-    private VBox createAllianceControls(String title, boolean isRed) {
-        VBox box = new VBox(15);
-        box.setPrefWidth(550);
-        box.setPadding(new Insets(15));
-        box.setStyle("-fx-background-color: " + (isRed ? "#ffebee" : "#e3f2fd") + "; -fx-background-radius: 5;");
+    private VBox createAlliancePanel(String title, boolean isRed) {
+        VBox panel = new VBox(10);
+        panel.setPadding(new Insets(10));
+        panel.setStyle("-fx-background-color: " + (isRed ? "#ffebee" : "#e3f2fd") + "; -fx-background-radius: 5; -fx-border-color: " + (isRed ? "#f44336" : "#2196F3") + "; -fx-border-width: 2; -fx-border-radius: 5;");
+        panel.setPrefWidth(650);
         
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: " + (isRed ? "#c62828" : "#1565c0"));
+        titleLabel.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: " + (isRed ? "#c62828" : "#1565c0") + ";");
         
-        // Autonomous section
-        TitledPane autoPane = new TitledPane();
-        autoPane.setText("Autonomous");
-        autoPane.setContent(createAutoSection(isRed));
-        autoPane.setExpanded(true);
+        // AUTO section
+        Label autoLabel = new Label("AUTONOMOUS (30 sec)");
+        autoLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
         
-        // TeleOp section
-        TitledPane teleopPane = new TitledPane();
-        teleopPane.setText("TeleOp");
-        teleopPane.setContent(createTeleopSection(isRed));
-        teleopPane.setExpanded(true);
-        
-        // Penalties section
-        TitledPane penaltyPane = new TitledPane();
-        penaltyPane.setText("Penalties");
-        penaltyPane.setContent(createPenaltySection(isRed));
-        
-        box.getChildren().addAll(titleLabel, autoPane, teleopPane, penaltyPane);
-        return box;
-    }
-    
-    private GridPane createAutoSection(boolean isRed) {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(10));
+        GridPane autoGrid = new GridPane();
+        autoGrid.setHgap(10);
+        autoGrid.setVgap(5);
         
         int row = 0;
         
-        // Classified Artifacts
-        grid.add(new Label("Classified Artifacts:"), 0, row);
-        Spinner<Integer> classifiedSpinner = new Spinner<>(0, 50, 0);
-        classifiedSpinner.setEditable(true);
-        if (isRed) redAutoClassified = classifiedSpinner;
-        else blueAutoClassified = classifiedSpinner;
-        grid.add(classifiedSpinner, 1, row++);
+        // LEAVE checkboxes
+        CheckBox robot1Leave = new CheckBox("Robot 1 LEAVE (3 pts)");
+        CheckBox robot2Leave = new CheckBox("Robot 2 LEAVE (3 pts)");
+        autoGrid.add(robot1Leave, 0, row++, 2, 1);
+        autoGrid.add(robot2Leave, 0, row++, 2, 1);
         
-        // Overflow Artifacts
-        grid.add(new Label("Overflow Artifacts:"), 0, row);
-        Spinner<Integer> overflowSpinner = new Spinner<>(0, 50, 0);
-        overflowSpinner.setEditable(true);
-        if (isRed) redAutoOverflow = overflowSpinner;
-        else blueAutoOverflow = overflowSpinner;
-        grid.add(overflowSpinner, 1, row++);
+        // ARTIFACTS
+        autoGrid.add(new Label("CLASSIFIED (3 pts each):"), 0, row);
+        Spinner<Integer> autoClassified = createSpinner(0, 100);
+        autoGrid.add(autoClassified, 1, row++);
         
-        // Robot 1 Position
-        grid.add(new Label("Robot 1 Position:"), 0, row);
-        ChoiceBox<DecodeScore.RobotPosition> robot1Choice = new ChoiceBox<>();
-        robot1Choice.getItems().addAll(DecodeScore.RobotPosition.values());
-        robot1Choice.setValue(DecodeScore.RobotPosition.NONE);
-        if (isRed) redRobot1Auto = robot1Choice;
-        else blueRobot1Auto = robot1Choice;
-        grid.add(robot1Choice, 1, row++);
+        autoGrid.add(new Label("OVERFLOW (1 pt each):"), 0, row);
+        Spinner<Integer> autoOverflow = createSpinner(0, 100);
+        autoGrid.add(autoOverflow, 1, row++);
         
-        // Robot 2 Position
-        grid.add(new Label("Robot 2 Position:"), 0, row);
-        ChoiceBox<DecodeScore.RobotPosition> robot2Choice = new ChoiceBox<>();
-        robot2Choice.getItems().addAll(DecodeScore.RobotPosition.values());
-        robot2Choice.setValue(DecodeScore.RobotPosition.NONE);
-        if (isRed) redRobot2Auto = robot2Choice;
-        else blueRobot2Auto = robot2Choice;
-        grid.add(robot2Choice, 1, row++);
+        autoGrid.add(new Label("PATTERN matches (2 pts each):"), 0, row);
+        Spinner<Integer> autoPattern = createSpinner(0, 20);
+        autoGrid.add(autoPattern, 1, row++);
         
-        return grid;
+        // TELEOP section
+        Label teleopLabel = new Label("TELEOP (2 min)");
+        teleopLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        
+        GridPane teleopGrid = new GridPane();
+        teleopGrid.setHgap(10);
+        teleopGrid.setVgap(5);
+        
+        row = 0;
+        teleopGrid.add(new Label("CLASSIFIED (3 pts each):"), 0, row);
+        Spinner<Integer> teleopClassified = createSpinner(0, 100);
+        teleopGrid.add(teleopClassified, 1, row++);
+        
+        teleopGrid.add(new Label("OVERFLOW (1 pt each):"), 0, row);
+        Spinner<Integer> teleopOverflow = createSpinner(0, 100);
+        teleopGrid.add(teleopOverflow, 1, row++);
+        
+        teleopGrid.add(new Label("DEPOT (1 pt each):"), 0, row);
+        Spinner<Integer> teleopDepot = createSpinner(0, 100);
+        teleopGrid.add(teleopDepot, 1, row++);
+        
+        teleopGrid.add(new Label("PATTERN matches (2 pts each):"), 0, row);
+        Spinner<Integer> teleopPattern = createSpinner(0, 20);
+        teleopGrid.add(teleopPattern, 1, row++);
+        
+        // BASE section
+        Label baseLabel = new Label("BASE RETURN (End Game)");
+        baseLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        
+        GridPane baseGrid = new GridPane();
+        baseGrid.setHgap(10);
+        baseGrid.setVgap(5);
+        
+        row = 0;
+        baseGrid.add(new Label("Robot 1:"), 0, row);
+        ComboBox<DecodeScore.BaseStatus> robot1Base = new ComboBox<>();
+        robot1Base.getItems().addAll(DecodeScore.BaseStatus.values());
+        robot1Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
+        baseGrid.add(robot1Base, 1, row++);
+        
+        baseGrid.add(new Label("Robot 2:"), 0, row);
+        ComboBox<DecodeScore.BaseStatus> robot2Base = new ComboBox<>();
+        robot2Base.getItems().addAll(DecodeScore.BaseStatus.values());
+        robot2Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
+        baseGrid.add(robot2Base, 1, row++);
+        
+        // Penalties
+        Label penaltyLabel = new Label("PENALTIES");
+        penaltyLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        
+        GridPane penaltyGrid = new GridPane();
+        penaltyGrid.setHgap(10);
+        penaltyGrid.setVgap(5);
+        
+        row = 0;
+        penaltyGrid.add(new Label("Major Fouls:"), 0, row);
+        Spinner<Integer> majorFouls = createSpinner(0, 20);
+        penaltyGrid.add(majorFouls, 1, row++);
+        
+        penaltyGrid.add(new Label("Minor Fouls:"), 0, row);
+        Spinner<Integer> minorFouls = createSpinner(0, 50);
+        penaltyGrid.add(minorFouls, 1, row++);
+        
+        // Score display
+        Label scoreLabel = new Label("Score: 0");
+        scoreLabel.setStyle("-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: " + (isRed ? "#c62828" : "#1565c0") + ";");
+        
+        panel.getChildren().addAll(
+            titleLabel,
+            autoLabel, autoGrid,
+            new Separator(),
+            teleopLabel, teleopGrid,
+            new Separator(),
+            baseLabel, baseGrid,
+            new Separator(),
+            penaltyLabel, penaltyGrid,
+            new Separator(),
+            scoreLabel
+        );
+        
+        // Store controls for binding
+        if (isRed) {
+            redRobot1Leave = robot1Leave;
+            redRobot2Leave = robot2Leave;
+            redAutoClassified = autoClassified;
+            redAutoOverflow = autoOverflow;
+            redAutoPattern = autoPattern;
+            redTeleopClassified = teleopClassified;
+            redTeleopOverflow = teleopOverflow;
+            redTeleopDepot = teleopDepot;
+            redTeleopPattern = teleopPattern;
+            redRobot1Base = robot1Base;
+            redRobot2Base = robot2Base;
+            redMajorFouls = majorFouls;
+            redMinorFouls = minorFouls;
+        } else {
+            blueRobot1Leave = robot1Leave;
+            blueRobot2Leave = robot2Leave;
+            blueAutoClassified = autoClassified;
+            blueAutoOverflow = autoOverflow;
+            blueAutoPattern = autoPattern;
+            blueTeleopClassified = teleopClassified;
+            blueTeleopOverflow = teleopOverflow;
+            blueTeleopDepot = teleopDepot;
+            blueTeleopPattern = teleopPattern;
+            blueRobot1Base = robot1Base;
+            blueRobot2Base = robot2Base;
+            blueMajorFouls = majorFouls;
+            blueMinorFouls = minorFouls;
+        }
+        
+        return panel;
     }
     
-    private GridPane createTeleopSection(boolean isRed) {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(10));
-        
-        int row = 0;
-        
-        // Classified Artifacts
-        grid.add(new Label("Classified Artifacts:"), 0, row);
-        Spinner<Integer> classifiedSpinner = new Spinner<>(0, 50, 0);
-        classifiedSpinner.setEditable(true);
-        if (isRed) redTeleopClassified = classifiedSpinner;
-        else blueTeleopClassified = classifiedSpinner;
-        grid.add(classifiedSpinner, 1, row++);
-        
-        // Overflow Artifacts
-        grid.add(new Label("Overflow Artifacts:"), 0, row);
-        Spinner<Integer> overflowSpinner = new Spinner<>(0, 50, 0);
-        overflowSpinner.setEditable(true);
-        if (isRed) redTeleopOverflow = overflowSpinner;
-        else blueTeleopOverflow = overflowSpinner;
-        grid.add(overflowSpinner, 1, row++);
-        
-        // Depot Artifacts
-        grid.add(new Label("Depot Artifacts:"), 0, row);
-        Spinner<Integer> depotSpinner = new Spinner<>(0, 50, 0);
-        depotSpinner.setEditable(true);
-        if (isRed) redTeleopDepot = depotSpinner;
-        else blueTeleopDepot = depotSpinner;
-        grid.add(depotSpinner, 1, row++);
-        
-        // Robot 1 Position
-        grid.add(new Label("Robot 1 Endgame:"), 0, row);
-        ChoiceBox<DecodeScore.RobotPosition> robot1Choice = new ChoiceBox<>();
-        robot1Choice.getItems().addAll(DecodeScore.RobotPosition.values());
-        robot1Choice.setValue(DecodeScore.RobotPosition.NONE);
-        if (isRed) redRobot1Teleop = robot1Choice;
-        else blueRobot1Teleop = robot1Choice;
-        grid.add(robot1Choice, 1, row++);
-        
-        // Robot 2 Position
-        grid.add(new Label("Robot 2 Endgame:"), 0, row);
-        ChoiceBox<DecodeScore.RobotPosition> robot2Choice = new ChoiceBox<>();
-        robot2Choice.getItems().addAll(DecodeScore.RobotPosition.values());
-        robot2Choice.setValue(DecodeScore.RobotPosition.NONE);
-        if (isRed) redRobot2Teleop = robot2Choice;
-        else blueRobot2Teleop = robot2Choice;
-        grid.add(robot2Choice, 1, row++);
-        
-        return grid;
-    }
-    
-    private GridPane createPenaltySection(boolean isRed) {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(10));
-        
-        int row = 0;
-        
-        // Major Fouls
-        grid.add(new Label("Major Fouls (on this alliance):"), 0, row);
-        Spinner<Integer> majorSpinner = new Spinner<>(0, 20, 0);
-        majorSpinner.setEditable(true);
-        if (isRed) redMajorFouls = majorSpinner;
-        else blueMajorFouls = majorSpinner;
-        grid.add(majorSpinner, 1, row++);
-        
-        // Minor Fouls
-        grid.add(new Label("Minor Fouls (on this alliance):"), 0, row);
-        Spinner<Integer> minorSpinner = new Spinner<>(0, 20, 0);
-        minorSpinner.setEditable(true);
-        if (isRed) redMinorFouls = minorSpinner;
-        else blueMinorFouls = minorSpinner;
-        grid.add(minorSpinner, 1, row++);
-        
-        return grid;
-    }
-    
-    private HBox createStatusBar() {
-        HBox box = new HBox(10);
-        box.setPadding(new Insets(10));
-        box.setAlignment(Pos.CENTER_LEFT);
-        box.setStyle("-fx-background-color: #f0f0f0;");
-        
-        statusLabel = new Label("Ready");
-        statusLabel.setStyle("-fx-font-size: 12;");
-        
-        box.getChildren().add(statusLabel);
-        return box;
+    private Spinner<Integer> createSpinner(int min, int max) {
+        Spinner<Integer> spinner = new Spinner<>(min, max, 0);
+        spinner.setEditable(true);
+        spinner.setPrefWidth(80);
+        return spinner;
     }
     
     private void bindToModel() {
-        // Bind red alliance controls
-        redAutoClassified.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setAutoClassifiedArtifacts(newVal));
-        redAutoOverflow.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setAutoOverflowArtifacts(newVal));
-        redTeleopClassified.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setTeleopClassifiedArtifacts(newVal));
-        redTeleopOverflow.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setTeleopOverflowArtifacts(newVal));
-        redTeleopDepot.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setTeleopDepotArtifacts(newVal));
-        redRobot1Auto.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setRobot1Auto(newVal));
-        redRobot2Auto.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setRobot2Auto(newVal));
-        redRobot1Teleop.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setRobot1Teleop(newVal));
-        redRobot2Teleop.valueProperty().addListener((obs, old, newVal) -> 
-            match.getRedScore().setRobot2Teleop(newVal));
-        redMajorFouls.valueProperty().addListener((obs, old, newVal) -> {
-            match.getRedScore().setOwnMajorFouls(newVal);
-            match.getBlueScore().setOtherMajorFouls(newVal);
+        // Red Alliance bindings
+        redRobot1Leave.selectedProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setRobot1Leave(newVal);
+            updateScoreDisplays();
         });
-        redMinorFouls.valueProperty().addListener((obs, old, newVal) -> {
-            match.getRedScore().setOwnMinorFouls(newVal);
-            match.getBlueScore().setOtherMinorFouls(newVal);
+        redRobot2Leave.selectedProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setRobot2Leave(newVal);
+            updateScoreDisplays();
         });
         
-        // Bind blue alliance controls
-        blueAutoClassified.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setAutoClassifiedArtifacts(newVal));
-        blueAutoOverflow.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setAutoOverflowArtifacts(newVal));
-        blueTeleopClassified.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setTeleopClassifiedArtifacts(newVal));
-        blueTeleopOverflow.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setTeleopOverflowArtifacts(newVal));
-        blueTeleopDepot.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setTeleopDepotArtifacts(newVal));
-        blueRobot1Auto.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setRobot1Auto(newVal));
-        blueRobot2Auto.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setRobot2Auto(newVal));
-        blueRobot1Teleop.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setRobot1Teleop(newVal));
-        blueRobot2Teleop.valueProperty().addListener((obs, old, newVal) -> 
-            match.getBlueScore().setRobot2Teleop(newVal));
+        redAutoClassified.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setAutoClassified(newVal);
+            updateScoreDisplays();
+        });
+        redAutoOverflow.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setAutoOverflow(newVal);
+            updateScoreDisplays();
+        });
+        redAutoPattern.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setAutoPatternMatches(newVal);
+            updateScoreDisplays();
+        });
+        
+        redTeleopClassified.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setTeleopClassified(newVal);
+            updateScoreDisplays();
+        });
+        redTeleopOverflow.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setTeleopOverflow(newVal);
+            updateScoreDisplays();
+        });
+        redTeleopDepot.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setTeleopDepot(newVal);
+            updateScoreDisplays();
+        });
+        redTeleopPattern.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setTeleopPatternMatches(newVal);
+            updateScoreDisplays();
+        });
+        
+        redRobot1Base.setOnAction(e -> {
+            match.getRedScore().setRobot1Base(redRobot1Base.getValue());
+            updateScoreDisplays();
+        });
+        redRobot2Base.setOnAction(e -> {
+            match.getRedScore().setRobot2Base(redRobot2Base.getValue());
+            updateScoreDisplays();
+        });
+        
+        redMajorFouls.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setMajorFouls(newVal);
+            updateScoreDisplays();
+        });
+        redMinorFouls.valueProperty().addListener((obs, old, newVal) -> {
+            match.getRedScore().setMinorFouls(newVal);
+            updateScoreDisplays();
+        });
+        
+        // Blue Alliance bindings (mirrored)
+        blueRobot1Leave.selectedProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setRobot1Leave(newVal);
+            updateScoreDisplays();
+        });
+        blueRobot2Leave.selectedProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setRobot2Leave(newVal);
+            updateScoreDisplays();
+        });
+        
+        blueAutoClassified.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setAutoClassified(newVal);
+            updateScoreDisplays();
+        });
+        blueAutoOverflow.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setAutoOverflow(newVal);
+            updateScoreDisplays();
+        });
+        blueAutoPattern.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setAutoPatternMatches(newVal);
+            updateScoreDisplays();
+        });
+        
+        blueTeleopClassified.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setTeleopClassified(newVal);
+            updateScoreDisplays();
+        });
+        blueTeleopOverflow.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setTeleopOverflow(newVal);
+            updateScoreDisplays();
+        });
+        blueTeleopDepot.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setTeleopDepot(newVal);
+            updateScoreDisplays();
+        });
+        blueTeleopPattern.valueProperty().addListener((obs, old, newVal) -> {
+            match.getBlueScore().setTeleopPatternMatches(newVal);
+            updateScoreDisplays();
+        });
+        
+        blueRobot1Base.setOnAction(e -> {
+            match.getBlueScore().setRobot1Base(blueRobot1Base.getValue());
+            updateScoreDisplays();
+        });
+        blueRobot2Base.setOnAction(e -> {
+            match.getBlueScore().setRobot2Base(blueRobot2Base.getValue());
+            updateScoreDisplays();
+        });
+        
         blueMajorFouls.valueProperty().addListener((obs, old, newVal) -> {
-            match.getBlueScore().setOwnMajorFouls(newVal);
-            match.getRedScore().setOtherMajorFouls(newVal);
+            match.getBlueScore().setMajorFouls(newVal);
+            updateScoreDisplays();
         });
         blueMinorFouls.valueProperty().addListener((obs, old, newVal) -> {
-            match.getBlueScore().setOwnMinorFouls(newVal);
-            match.getRedScore().setOtherMinorFouls(newVal);
+            match.getBlueScore().setMinorFouls(newVal);
+            updateScoreDisplays();
         });
     }
     
+    private void updateScoreDisplays() {
+        // Update score labels in the alliance panels
+        // Note: Score labels are embedded in the panels, so we'd need to refactor to update them
+        // For now, the StreamOutputWindow will show live scores
+    }
+    
     private void resetAllControls() {
+        // Red Alliance
+        redRobot1Leave.setSelected(false);
+        redRobot2Leave.setSelected(false);
         redAutoClassified.getValueFactory().setValue(0);
         redAutoOverflow.getValueFactory().setValue(0);
+        redAutoPattern.getValueFactory().setValue(0);
         redTeleopClassified.getValueFactory().setValue(0);
         redTeleopOverflow.getValueFactory().setValue(0);
         redTeleopDepot.getValueFactory().setValue(0);
-        redRobot1Auto.setValue(DecodeScore.RobotPosition.NONE);
-        redRobot2Auto.setValue(DecodeScore.RobotPosition.NONE);
-        redRobot1Teleop.setValue(DecodeScore.RobotPosition.NONE);
-        redRobot2Teleop.setValue(DecodeScore.RobotPosition.NONE);
+        redTeleopPattern.getValueFactory().setValue(0);
+        redRobot1Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
+        redRobot2Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
         redMajorFouls.getValueFactory().setValue(0);
         redMinorFouls.getValueFactory().setValue(0);
         
+        // Blue Alliance
+        blueRobot1Leave.setSelected(false);
+        blueRobot2Leave.setSelected(false);
         blueAutoClassified.getValueFactory().setValue(0);
         blueAutoOverflow.getValueFactory().setValue(0);
+        blueAutoPattern.getValueFactory().setValue(0);
         blueTeleopClassified.getValueFactory().setValue(0);
         blueTeleopOverflow.getValueFactory().setValue(0);
         blueTeleopDepot.getValueFactory().setValue(0);
-        blueRobot1Auto.setValue(DecodeScore.RobotPosition.NONE);
-        blueRobot2Auto.setValue(DecodeScore.RobotPosition.NONE);
-        blueRobot1Teleop.setValue(DecodeScore.RobotPosition.NONE);
-        blueRobot2Teleop.setValue(DecodeScore.RobotPosition.NONE);
+        blueTeleopPattern.getValueFactory().setValue(0);
+        blueRobot1Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
+        blueRobot2Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
         blueMajorFouls.getValueFactory().setValue(0);
         blueMinorFouls.getValueFactory().setValue(0);
+        
+        // Reset MOTIF
+        motifSelector.setValue(DecodeScore.MotifType.PPG);
+        
+        updateScoreDisplays();
+    }
+    
+    /**
+     * Show detailed score breakdown dialog
+     */
+    private void showScoreBreakdown() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Score Breakdown - DECODE 2025-2026");
+        alert.setHeaderText("Final Score Breakdown");
+        
+        StringBuilder breakdown = new StringBuilder();
+        
+        // Match info
+        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
+        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+        breakdown.append("MOTIF: ").append(match.getRedScore().getMotif().getDisplayName()).append("\n\n");
+        
+        // RED ALLIANCE
+        breakdown.append("═══ RED ALLIANCE (Team ").append(redTeam).append(") ═══\n\n");
+        DecodeScore redScore = match.getRedScore();
+        
+        breakdown.append("AUTONOMOUS:\n");
+        breakdown.append("  LEAVE: ");
+        if (redScore.isRobot1Leave()) breakdown.append("Robot 1 (3 pts) ");
+        if (redScore.isRobot2Leave()) breakdown.append("Robot 2 (3 pts) ");
+        if (!redScore.isRobot1Leave() && !redScore.isRobot2Leave()) breakdown.append("None");
+        breakdown.append("\n");
+        breakdown.append("  Classified: ").append(redScore.getAutoClassified()).append(" × 3 = ")
+                  .append(redScore.getAutoClassified() * 3).append(" pts\n");
+        breakdown.append("  Overflow: ").append(redScore.getAutoOverflow()).append(" × 1 = ")
+                  .append(redScore.getAutoOverflow()).append(" pts\n");
+        breakdown.append("  Pattern: ").append(redScore.getAutoPatternMatches()).append(" × 2 = ")
+                  .append(redScore.getAutoPatternMatches() * 2).append(" pts\n\n");
+        
+        breakdown.append("TELEOP:\n");
+        breakdown.append("  Classified: ").append(redScore.getTeleopClassified()).append(" × 3 = ")
+                  .append(redScore.getTeleopClassified() * 3).append(" pts\n");
+        breakdown.append("  Overflow: ").append(redScore.getTeleopOverflow()).append(" × 1 = ")
+                  .append(redScore.getTeleopOverflow()).append(" pts\n");
+        breakdown.append("  Depot: ").append(redScore.getTeleopDepot()).append(" × 1 = ")
+                  .append(redScore.getTeleopDepot()).append(" pts\n");
+        breakdown.append("  Pattern: ").append(redScore.getTeleopPatternMatches()).append(" × 2 = ")
+                  .append(redScore.getTeleopPatternMatches() * 2).append(" pts\n\n");
+        
+        breakdown.append("BASE RETURN:\n");
+        breakdown.append("  Robot 1: ").append(redScore.getRobot1Base().getDisplayName()).append("\n");
+        breakdown.append("  Robot 2: ").append(redScore.getRobot2Base().getDisplayName()).append("\n");
+        breakdown.append("  Movement Points: ").append(redScore.getMovementPoints()).append(" pts\n\n");
+        
+        breakdown.append("PENALTIES (from Blue):\n");
+        DecodeScore blueScore = match.getBlueScore();
+        breakdown.append("  Major Fouls: ").append(blueScore.getMajorFouls()).append(" × 15 = ")
+                  .append(blueScore.getMajorFouls() * 15).append(" pts\n");
+        breakdown.append("  Minor Fouls: ").append(blueScore.getMinorFouls()).append(" × 5 = ")
+                  .append(blueScore.getMinorFouls() * 5).append(" pts\n\n");
+        
+        breakdown.append("RED TOTAL: ").append(match.getRedTotalScore()).append(" points\n\n");
+        
+        // BLUE ALLIANCE
+        breakdown.append("═══ BLUE ALLIANCE (Team ").append(blueTeam).append(") ═══\n\n");
+        
+        breakdown.append("AUTONOMOUS:\n");
+        breakdown.append("  LEAVE: ");
+        if (blueScore.isRobot1Leave()) breakdown.append("Robot 1 (3 pts) ");
+        if (blueScore.isRobot2Leave()) breakdown.append("Robot 2 (3 pts) ");
+        if (!blueScore.isRobot1Leave() && !blueScore.isRobot2Leave()) breakdown.append("None");
+        breakdown.append("\n");
+        breakdown.append("  Classified: ").append(blueScore.getAutoClassified()).append(" × 3 = ")
+                  .append(blueScore.getAutoClassified() * 3).append(" pts\n");
+        breakdown.append("  Overflow: ").append(blueScore.getAutoOverflow()).append(" × 1 = ")
+                  .append(blueScore.getAutoOverflow()).append(" pts\n");
+        breakdown.append("  Pattern: ").append(blueScore.getAutoPatternMatches()).append(" × 2 = ")
+                  .append(blueScore.getAutoPatternMatches() * 2).append(" pts\n\n");
+        
+        breakdown.append("TELEOP:\n");
+        breakdown.append("  Classified: ").append(blueScore.getTeleopClassified()).append(" × 3 = ")
+                  .append(blueScore.getTeleopClassified() * 3).append(" pts\n");
+        breakdown.append("  Overflow: ").append(blueScore.getTeleopOverflow()).append(" × 1 = ")
+                  .append(blueScore.getTeleopOverflow()).append(" pts\n");
+        breakdown.append("  Depot: ").append(blueScore.getTeleopDepot()).append(" × 1 = ")
+                  .append(blueScore.getTeleopDepot()).append(" pts\n");
+        breakdown.append("  Pattern: ").append(blueScore.getTeleopPatternMatches()).append(" × 2 = ")
+                  .append(blueScore.getTeleopPatternMatches() * 2).append(" pts\n\n");
+        
+        breakdown.append("BASE RETURN:\n");
+        breakdown.append("  Robot 1: ").append(blueScore.getRobot1Base().getDisplayName()).append("\n");
+        breakdown.append("  Robot 2: ").append(blueScore.getRobot2Base().getDisplayName()).append("\n");
+        breakdown.append("  Movement Points: ").append(blueScore.getMovementPoints()).append(" pts\n\n");
+        
+        breakdown.append("PENALTIES (from Red):\n");
+        breakdown.append("  Major Fouls: ").append(redScore.getMajorFouls()).append(" × 15 = ")
+                  .append(redScore.getMajorFouls() * 15).append(" pts\n");
+        breakdown.append("  Minor Fouls: ").append(redScore.getMinorFouls()).append(" × 5 = ")
+                  .append(redScore.getMinorFouls() * 5).append(" pts\n\n");
+        
+        breakdown.append("BLUE TOTAL: ").append(match.getBlueTotalScore()).append(" points\n\n");
+        
+        // WINNER
+        breakdown.append("═══════════════════════════\n");
+        int redTotal = match.getRedTotalScore();
+        int blueTotal = match.getBlueTotalScore();
+        if (redTotal > blueTotal) {
+            breakdown.append("🏆 RED ALLIANCE WINS! 🏆\n");
+        } else if (blueTotal > redTotal) {
+            breakdown.append("🏆 BLUE ALLIANCE WINS! 🏆\n");
+        } else {
+            breakdown.append("🤝 TIE MATCH! 🤝\n");
+        }
+        breakdown.append("═══════════════════════════");
+        
+        alert.setContentText(breakdown.toString());
+        alert.getDialogPane().setPrefSize(600, 700);
+        alert.showAndWait();
     }
     
     public void show() {
         stage.show();
     }
     
-    public Stage getStage() {
-        return stage;
+    public void hide() {
+        stage.hide();
     }
 }
