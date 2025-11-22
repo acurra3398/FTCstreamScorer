@@ -166,27 +166,41 @@ public class StreamOutputWindow {
         
         Color redColor = Color.rgb(211, 47, 47);
         
-        // Team info (leftmost)
-        VBox teamBox = createInfoBox("RED", "----", redColor, 80);
-        redTeamLabel = (Label) ((VBox)teamBox.getChildren().get(0)).getChildren().get(1);
+        // Team info (leftmost) - using text label for team name
+        VBox teamBox = new VBox(2);
+        teamBox.setAlignment(Pos.CENTER);
+        teamBox.setPadding(new Insets(8, 10, 8, 10));
+        teamBox.setStyle("-fx-background-color: white; -fx-border-color: " + toRgbString(redColor) + "; -fx-border-width: 2;");
+        teamBox.setMinWidth(80);
+        teamBox.setMaxWidth(80);
+        
+        Label redLabel = new Label("RED");
+        redLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        redLabel.setTextFill(redColor);
+        
+        redTeamLabel = new Label("----");
+        redTeamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        redTeamLabel.setTextFill(Color.BLACK);
+        
+        teamBox.getChildren().addAll(redLabel, redTeamLabel);
         
         // Fouls (opponent's fouls give us points)
-        VBox foulsBox = createInfoBox("⚠️", "0", redColor, 70);
+        VBox foulsBox = createInfoBox("foul_icon", "0", redColor, 70);
         redFoulLabel = (Label) ((VBox)foulsBox.getChildren().get(0)).getChildren().get(1);
         
         // Pattern points
-        VBox patternBox = createInfoBox("🔷", "0", redColor, 60);
+        VBox patternBox = createInfoBox("pattern_icon", "0", redColor, 60);
         redMotifLabel = (Label) ((VBox)patternBox.getChildren().get(0)).getChildren().get(1);
         
         // Leave + Base (stacked)
-        VBox leaveBaseBox = createStackedInfoBox("🚀", "0", "🏠", "0", redColor, 70);
+        VBox leaveBaseBox = createStackedInfoBox("leave_icon", "0", "base_icon", "0", redColor, 70);
         VBox leaveSection = (VBox) leaveBaseBox.getChildren().get(0);
         VBox baseSection = (VBox) leaveBaseBox.getChildren().get(2);
         redLeaveLabel = (Label) leaveSection.getChildren().get(1);
         redBaseLabel = (Label) baseSection.getChildren().get(1);
         
         // Classified + Overflow (stacked)
-        VBox classifiedOverflowBox = createStackedInfoBox("🎯", "0", "📦", "0", redColor, 70);
+        VBox classifiedOverflowBox = createStackedInfoBox("classified_icon", "0", "overflow_icon", "0", redColor, 70);
         VBox classifiedSection = (VBox) classifiedOverflowBox.getChildren().get(0);
         VBox overflowSection = (VBox) classifiedOverflowBox.getChildren().get(2);
         redClassifiedLabel = (Label) classifiedSection.getChildren().get(1);
@@ -218,30 +232,44 @@ public class StreamOutputWindow {
         blueScoreLabel = (Label) ((VBox)totalBox.getChildren().get(0)).getChildren().get(0);
         
         // Classified + Overflow (stacked)
-        VBox classifiedOverflowBox = createStackedInfoBox("🎯", "0", "📦", "0", blueColor, 70);
+        VBox classifiedOverflowBox = createStackedInfoBox("classified_icon", "0", "overflow_icon", "0", blueColor, 70);
         VBox blueClassifiedSection = (VBox) classifiedOverflowBox.getChildren().get(0);
         VBox blueOverflowSection = (VBox) classifiedOverflowBox.getChildren().get(2);
         blueClassifiedLabel = (Label) blueClassifiedSection.getChildren().get(1);
         blueOverflowLabel = (Label) blueOverflowSection.getChildren().get(1);
         
         // Leave + Base (stacked)
-        VBox leaveBaseBox = createStackedInfoBox("🚀", "0", "🏠", "0", blueColor, 70);
+        VBox leaveBaseBox = createStackedInfoBox("leave_icon", "0", "base_icon", "0", blueColor, 70);
         VBox blueLeaveSection = (VBox) leaveBaseBox.getChildren().get(0);
         VBox blueBaseSection = (VBox) leaveBaseBox.getChildren().get(2);
         blueLeaveLabel = (Label) blueLeaveSection.getChildren().get(1);
         blueBaseLabel = (Label) blueBaseSection.getChildren().get(1);
         
         // Pattern points
-        VBox patternBox = createInfoBox("🔷", "0", blueColor, 60);
+        VBox patternBox = createInfoBox("pattern_icon", "0", blueColor, 60);
         blueMotifLabel = (Label) ((VBox)patternBox.getChildren().get(0)).getChildren().get(1);
         
         // Fouls (opponent's fouls give us points)
-        VBox foulsBox = createInfoBox("⚠️", "0", blueColor, 70);
+        VBox foulsBox = createInfoBox("foul_icon", "0", blueColor, 70);
         blueFoulLabel = (Label) ((VBox)foulsBox.getChildren().get(0)).getChildren().get(1);
         
-        // Team info (rightmost)
-        VBox teamBox = createInfoBox("BLUE", "----", blueColor, 80);
-        blueTeamLabel = (Label) ((VBox)teamBox.getChildren().get(0)).getChildren().get(1);
+        // Team info (rightmost) - using text label for team name
+        VBox teamBox = new VBox(2);
+        teamBox.setAlignment(Pos.CENTER);
+        teamBox.setPadding(new Insets(8, 10, 8, 10));
+        teamBox.setStyle("-fx-background-color: white; -fx-border-color: " + toRgbString(blueColor) + "; -fx-border-width: 2;");
+        teamBox.setMinWidth(80);
+        teamBox.setMaxWidth(80);
+        
+        Label blueLabel = new Label("BLUE");
+        blueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        blueLabel.setTextFill(blueColor);
+        
+        blueTeamLabel = new Label("----");
+        blueTeamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        blueTeamLabel.setTextFill(Color.BLACK);
+        
+        teamBox.getChildren().addAll(blueLabel, blueTeamLabel);
         
         section.getChildren().addAll(totalBox, classifiedOverflowBox, leaveBaseBox, patternBox, foulsBox, teamBox);
         
@@ -249,9 +277,41 @@ public class StreamOutputWindow {
     }
     
     /**
-     * Create a small white info box with icon/label and value
+     * Load icon from resources (PNG or SVG)
      */
-    private VBox createInfoBox(String label, String value, Color color, int width) {
+    private ImageView loadIcon(String iconName, int size) {
+        try {
+            // Try PNG first
+            java.net.URL pngResource = getClass().getResource("/images/" + iconName + ".png");
+            if (pngResource != null) {
+                Image image = new Image(pngResource.toString(), size, size, true, true);
+                ImageView imageView = new ImageView(image);
+                imageView.setFitWidth(size);
+                imageView.setFitHeight(size);
+                return imageView;
+            }
+            
+            // Try SVG
+            java.net.URL svgResource = getClass().getResource("/images/" + iconName + ".svg");
+            if (svgResource != null) {
+                Image image = new Image(svgResource.toString(), size, size, true, true);
+                ImageView imageView = new ImageView(image);
+                imageView.setFitWidth(size);
+                imageView.setFitHeight(size);
+                return imageView;
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load icon: " + iconName);
+        }
+        
+        // Fallback: return empty ImageView
+        return new ImageView();
+    }
+    
+    /**
+     * Create a small white info box with icon and value
+     */
+    private VBox createInfoBox(String iconName, String value, Color color, int width) {
         VBox box = new VBox(2);
         box.setAlignment(Pos.CENTER);
         box.setPadding(new Insets(8, 10, 8, 10));
@@ -262,24 +322,23 @@ public class StreamOutputWindow {
         VBox content = new VBox(2);
         content.setAlignment(Pos.CENTER);
         
-        Label labelText = new Label(label);
-        labelText.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-        labelText.setTextFill(color);
+        // Load icon (PNG or SVG)
+        ImageView icon = loadIcon(iconName, 24);
         
         Label valueText = new Label(value);
         valueText.setFont(Font.font("Arial", FontWeight.BOLD, 16));
         valueText.setTextFill(Color.BLACK);
         
-        content.getChildren().addAll(labelText, valueText);
+        content.getChildren().addAll(icon, valueText);
         box.getChildren().add(content);
         
         return box;
     }
     
     /**
-     * Create a stacked info box with two categories (icon only)
+     * Create a stacked info box with two categories (icon images)
      */
-    private VBox createStackedInfoBox(String icon1, String value1, String icon2, String value2, Color color, int width) {
+    private VBox createStackedInfoBox(String iconName1, String value1, String iconName2, String value2, Color color, int width) {
         VBox box = new VBox(0);
         box.setAlignment(Pos.CENTER);
         box.setStyle("-fx-border-color: " + toRgbString(color) + "; -fx-border-width: 2;");
@@ -292,14 +351,13 @@ public class StreamOutputWindow {
         topSection.setPadding(new Insets(6, 8, 6, 8));
         topSection.setStyle("-fx-background-color: white;");
         
-        Label topLabel = new Label(icon1);
-        topLabel.setFont(Font.font(16));
+        ImageView topIcon = loadIcon(iconName1, 20);
         
         Label topValue = new Label(value1);
         topValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         topValue.setTextFill(Color.BLACK);
         
-        topSection.getChildren().addAll(topLabel, topValue);
+        topSection.getChildren().addAll(topIcon, topValue);
         
         // Separator line
         Region separator = new Region();
@@ -312,14 +370,13 @@ public class StreamOutputWindow {
         bottomSection.setPadding(new Insets(6, 8, 6, 8));
         bottomSection.setStyle("-fx-background-color: white;");
         
-        Label bottomLabel = new Label(icon2);
-        bottomLabel.setFont(Font.font(16));
+        ImageView bottomIcon = loadIcon(iconName2, 20);
         
         Label bottomValue = new Label(value2);
         bottomValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         bottomValue.setTextFill(Color.BLACK);
         
-        bottomSection.getChildren().addAll(bottomLabel, bottomValue);
+        bottomSection.getChildren().addAll(bottomIcon, bottomValue);
         
         box.getChildren().addAll(topSection, separator, bottomSection);
         
