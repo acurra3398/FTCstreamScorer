@@ -334,7 +334,7 @@ public class ControlWindow {
         
         // AUTO section
         Label autoLabel = new Label("AUTONOMOUS (30 sec)");
-        autoLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        autoLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #000000;");
         
         GridPane autoGrid = new GridPane();
         autoGrid.setHgap(10);
@@ -344,64 +344,84 @@ public class ControlWindow {
         
         // LEAVE checkboxes
         CheckBox robot1Leave = new CheckBox("Robot 1 LEAVE (3 pts)");
+        robot1Leave.setStyle("-fx-text-fill: #000000;");
         CheckBox robot2Leave = new CheckBox("Robot 2 LEAVE (3 pts)");
+        robot2Leave.setStyle("-fx-text-fill: #000000;");
         autoGrid.add(robot1Leave, 0, row++, 2, 1);
         autoGrid.add(robot2Leave, 0, row++, 2, 1);
         
         // ARTIFACTS
-        autoGrid.add(new Label("CLASSIFIED (3 pts each):"), 0, row);
+        Label autoClassifiedLabel = new Label("CLASSIFIED (3 pts each):");
+        autoClassifiedLabel.setStyle("-fx-text-fill: #000000;");
+        autoGrid.add(autoClassifiedLabel, 0, row);
         Spinner<Integer> autoClassified = createSpinner(0, 100);
         autoGrid.add(autoClassified, 1, row++);
         
-        autoGrid.add(new Label("OVERFLOW (1 pt each):"), 0, row);
+        Label autoOverflowLabel = new Label("OVERFLOW (1 pt each):");
+        autoOverflowLabel.setStyle("-fx-text-fill: #000000;");
+        autoGrid.add(autoOverflowLabel, 0, row);
         Spinner<Integer> autoOverflow = createSpinner(0, 100);
         autoGrid.add(autoOverflow, 1, row++);
         
-        autoGrid.add(new Label("PATTERN matches (2 pts each):"), 0, row);
+        Label autoPatternLabel = new Label("PATTERN matches (2 pts each):");
+        autoPatternLabel.setStyle("-fx-text-fill: #000000;");
+        autoGrid.add(autoPatternLabel, 0, row);
         Spinner<Integer> autoPattern = createSpinner(0, 20);
         autoGrid.add(autoPattern, 1, row++);
         
         // TELEOP section
         Label teleopLabel = new Label("TELEOP (2 min)");
-        teleopLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        teleopLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #000000;");
         
         GridPane teleopGrid = new GridPane();
         teleopGrid.setHgap(10);
         teleopGrid.setVgap(5);
         
         row = 0;
-        teleopGrid.add(new Label("CLASSIFIED (3 pts each):"), 0, row);
+        Label teleopClassifiedLabel = new Label("CLASSIFIED (3 pts each):");
+        teleopClassifiedLabel.setStyle("-fx-text-fill: #000000;");
+        teleopGrid.add(teleopClassifiedLabel, 0, row);
         Spinner<Integer> teleopClassified = createSpinner(0, 100);
         teleopGrid.add(teleopClassified, 1, row++);
         
-        teleopGrid.add(new Label("OVERFLOW (1 pt each):"), 0, row);
+        Label teleopOverflowLabel = new Label("OVERFLOW (1 pt each):");
+        teleopOverflowLabel.setStyle("-fx-text-fill: #000000;");
+        teleopGrid.add(teleopOverflowLabel, 0, row);
         Spinner<Integer> teleopOverflow = createSpinner(0, 100);
         teleopGrid.add(teleopOverflow, 1, row++);
         
-        teleopGrid.add(new Label("DEPOT (1 pt each):"), 0, row);
+        Label teleopDepotLabel = new Label("DEPOT (1 pt each):");
+        teleopDepotLabel.setStyle("-fx-text-fill: #000000;");
+        teleopGrid.add(teleopDepotLabel, 0, row);
         Spinner<Integer> teleopDepot = createSpinner(0, 100);
         teleopGrid.add(teleopDepot, 1, row++);
         
-        teleopGrid.add(new Label("PATTERN matches (2 pts each):"), 0, row);
+        Label teleopPatternLabel = new Label("PATTERN matches (2 pts each):");
+        teleopPatternLabel.setStyle("-fx-text-fill: #000000;");
+        teleopGrid.add(teleopPatternLabel, 0, row);
         Spinner<Integer> teleopPattern = createSpinner(0, 20);
         teleopGrid.add(teleopPattern, 1, row++);
         
         // BASE section
         Label baseLabel = new Label("BASE RETURN (End Game)");
-        baseLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        baseLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #000000;");
         
         GridPane baseGrid = new GridPane();
         baseGrid.setHgap(10);
         baseGrid.setVgap(5);
         
         row = 0;
-        baseGrid.add(new Label("Robot 1:"), 0, row);
+        Label robot1Label = new Label("Robot 1:");
+        robot1Label.setStyle("-fx-text-fill: #000000;");
+        baseGrid.add(robot1Label, 0, row);
         ComboBox<DecodeScore.BaseStatus> robot1Base = new ComboBox<>();
         robot1Base.getItems().addAll(DecodeScore.BaseStatus.values());
         robot1Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
         baseGrid.add(robot1Base, 1, row++);
         
-        baseGrid.add(new Label("Robot 2:"), 0, row);
+        Label robot2Label = new Label("Robot 2:");
+        robot2Label.setStyle("-fx-text-fill: #000000;");
+        baseGrid.add(robot2Label, 0, row);
         ComboBox<DecodeScore.BaseStatus> robot2Base = new ComboBox<>();
         robot2Base.getItems().addAll(DecodeScore.BaseStatus.values());
         robot2Base.setValue(DecodeScore.BaseStatus.NOT_IN_BASE);
@@ -409,18 +429,22 @@ public class ControlWindow {
         
         // Penalties
         Label penaltyLabel = new Label("PENALTIES");
-        penaltyLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold;");
+        penaltyLabel.setStyle("-fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: #000000;");
         
         GridPane penaltyGrid = new GridPane();
         penaltyGrid.setHgap(10);
         penaltyGrid.setVgap(5);
         
         row = 0;
-        penaltyGrid.add(new Label("Major Fouls:"), 0, row);
+        Label majorFoulsLabel = new Label("Major Fouls:");
+        majorFoulsLabel.setStyle("-fx-text-fill: #000000;");
+        penaltyGrid.add(majorFoulsLabel, 0, row);
         Spinner<Integer> majorFouls = createSpinner(0, 20);
         penaltyGrid.add(majorFouls, 1, row++);
         
-        penaltyGrid.add(new Label("Minor Fouls:"), 0, row);
+        Label minorFoulsLabel = new Label("Minor Fouls:");
+        minorFoulsLabel.setStyle("-fx-text-fill: #000000;");
+        penaltyGrid.add(minorFoulsLabel, 0, row);
         Spinner<Integer> minorFouls = createSpinner(0, 50);
         penaltyGrid.add(minorFouls, 1, row++);
         
