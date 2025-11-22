@@ -75,9 +75,15 @@ public class ControlWindow {
         VBox topSection = createMatchControls();
         root.setTop(topSection);
         
-        // Center: Scoring controls (Red and Blue)
+        // Center: Scoring controls (Red and Blue) - wrapped in ScrollPane to ensure fouls are accessible
         HBox centerSection = createScoringControls();
-        root.setCenter(centerSection);
+        ScrollPane scrollPane = new ScrollPane(centerSection);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        root.setCenter(scrollPane);
         
         Scene scene = new Scene(root, 1400, 900);
         stage.setScene(scene);
@@ -678,33 +684,104 @@ public class ControlWindow {
     }
     
     /**
-     * Show stream countdown - Simplified, configurable countdown
-     * Just shows "Stream starts in: X" with DECODE background
-     * Switchable to main game at any time (hide splash to return)
+     * Show stream countdown - Configurable countdown in minutes:seconds format
+     * Shows "Stream starts in: MM:SS" with DECODE background
+     * Requires button press to exit (doesn't auto-hide)
      */
     private void showStreamCountdown() {
-        // Use Timeline for countdown (JavaFX-safe)
-        // Starting from 5 seconds countdown
-        javafx.animation.Timeline countdownTimeline = new javafx.animation.Timeline();
-        for (int i = 5; i >= 1; i--) {
-            final int count = i;
-            countdownTimeline.getKeyFrames().add(
-                new javafx.animation.KeyFrame(
-                    javafx.util.Duration.seconds(5 - i),
-                    e -> streamWindow.showSplashScreen(String.valueOf(count), "", "", "")
-                )
-            );
+        // Show dialog to configure countdown duration
+        TextInputDialog dialog = new TextInputDialog("5:00");
+        dialog.setTitle("Configure Stream Countdown");
+        dialog.setHeaderText("Set countdown duration");
+        dialog.setContentText("Enter duration (MM:SS):");
+        
+        java.util.Optional<String> result = dialog.showAndWait();
+        if (!result.isPresent()) {
+            return; // User cancelled
         }
         
-        // Hide splash after countdown completes
+        String durationInput = result.get();
+        int totalSeconds = parseCountdownDuration(durationInput);
+        
+        if (totalSeconds <= 0) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Invalid Duration");
+            alert.setHeaderText("Invalid countdown duration");
+            alert.setContentText("Please enter a valid duration in MM:SS format (e.g., 5:00)");
+            alert.showAndWait();
+            return;
+        }
+        
+        // Create countdown timeline that updates every second
+        final int[] currentSeconds = {totalSeconds};
+        javafx.animation.Timeline countdownTimeline = new javafx.animation.Timeline();
+        
+        // Update countdown every second
         countdownTimeline.getKeyFrames().add(
             new javafx.animation.KeyFrame(
-                javafx.util.Duration.seconds(5),
-                e -> streamWindow.hideSplashScreen()
+                javafx.util.Duration.seconds(1),
+                e -> {
+                    currentSeconds[0]--;
+                    String timeDisplay = formatCountdownTime(currentSeconds[0]);
+                    streamWindow.showSplashScreen(timeDisplay, "", "", "");
+                    
+                    // When countdown reaches zero, show "00:00" but don't hide
+                    if (currentSeconds[0] <= 0) {
+                        countdownTimeline.stop();
+                    }
+                }
             )
         );
+        countdownTimeline.setCycleCount(totalSeconds);
         
+        // Show initial countdown
+        String initialDisplay = formatCountdownTime(totalSeconds);
+        streamWindow.showSplashScreen(initialDisplay, "", "", "");
+        
+        // Start the countdown
         countdownTimeline.play();
+        
+        // Change the countdown button to "HIDE COUNTDOWN"
+        countdownButton.setText("HIDE COUNTDOWN");
+        countdownButton.setOnAction(e -> {
+            countdownTimeline.stop();
+            streamWindow.hideSplashScreen();
+            // Restore original button text and action
+            countdownButton.setText("SHOW STREAM COUNTDOWN");
+            countdownButton.setOnAction(evt -> showStreamCountdown());
+        });
+    }
+    
+    /**
+     * Parse countdown duration from MM:SS format
+     */
+    private int parseCountdownDuration(String input) {
+        try {
+            String[] parts = input.split(":");
+            if (parts.length == 2) {
+                int minutes = Integer.parseInt(parts[0].trim());
+                int seconds = Integer.parseInt(parts[1].trim());
+                return minutes * 60 + seconds;
+            } else if (parts.length == 1) {
+                // Just seconds
+                return Integer.parseInt(parts[0].trim());
+            }
+        } catch (NumberFormatException e) {
+            // Invalid format
+        }
+        return -1;
+    }
+    
+    /**
+     * Format seconds as MM:SS
+     */
+    private String formatCountdownTime(int totalSeconds) {
+        if (totalSeconds < 0) {
+            return "00:00";
+        }
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return String.format("%d:%02d", minutes, seconds);
     }
     
     /**

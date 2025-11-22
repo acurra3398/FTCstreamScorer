@@ -163,6 +163,8 @@ public class StreamOutputWindow {
         section.setAlignment(Pos.CENTER_RIGHT);
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
+        // Add colored background for red alliance section
+        section.setStyle("-fx-background-color: rgba(211, 47, 47, 0.15);");
         
         Color redColor = Color.rgb(211, 47, 47);
         
@@ -224,6 +226,8 @@ public class StreamOutputWindow {
         section.setAlignment(Pos.CENTER_LEFT);
         section.setPadding(new Insets(10));
         HBox.setHgrow(section, Priority.ALWAYS);
+        // Add colored background for blue alliance section
+        section.setStyle("-fx-background-color: rgba(25, 118, 210, 0.15);");
         
         Color blueColor = Color.rgb(25, 118, 210);
         
