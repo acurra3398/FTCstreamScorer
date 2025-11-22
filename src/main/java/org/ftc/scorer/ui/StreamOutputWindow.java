@@ -511,23 +511,6 @@ public class StreamOutputWindow {
         updateDetailedBreakdown();
     }
     
-    /**
-     * Calculate base return points for a score
-     */
-    private int calculateBasePts(org.ftc.scorer.model.DecodeScore score) {
-        int basePts = 0;
-        if (score.getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) basePts += 5;
-        if (score.getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) basePts += 10;
-        if (score.getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.PARTIALLY_IN_BASE) basePts += 5;
-        if (score.getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) basePts += 10;
-        // Bonus if both fully in base
-        if (score.getRobot1Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE &&
-            score.getRobot2Base() == org.ftc.scorer.model.DecodeScore.BaseStatus.FULLY_IN_BASE) {
-            basePts += 10;
-        }
-        return basePts;
-    }
-    
     private void updateDetailedBreakdown() {
         // Red Alliance breakdown
         int redClassified = match.getRedScore().getAutoClassified() + match.getRedScore().getTeleopClassified();
@@ -535,8 +518,8 @@ public class StreamOutputWindow {
         int redPattern = match.getRedScore().getAutoPatternMatches() + match.getRedScore().getTeleopPatternMatches();
         int redLeave = (match.getRedScore().isRobot1Leave() ? 1 : 0) + (match.getRedScore().isRobot2Leave() ? 1 : 0);
         
-        // Calculate base points
-        int redBasePts = calculateBasePts(match.getRedScore());
+        // Get base points from score model
+        int redBasePts = match.getRedScore().getBasePoints();
         
         // Opponent fouls give points to this alliance (5 pts minor, 15 pts major)
         int redFoulPts = match.getBlueScore().getMinorFouls() * 5 + match.getBlueScore().getMajorFouls() * 15;
@@ -563,8 +546,8 @@ public class StreamOutputWindow {
         int bluePattern = match.getBlueScore().getAutoPatternMatches() + match.getBlueScore().getTeleopPatternMatches();
         int blueLeave = (match.getBlueScore().isRobot1Leave() ? 1 : 0) + (match.getBlueScore().isRobot2Leave() ? 1 : 0);
         
-        // Calculate base points
-        int blueBasePts = calculateBasePts(match.getBlueScore());
+        // Get base points from score model
+        int blueBasePts = match.getBlueScore().getBasePoints();
         
         // Opponent fouls give points to this alliance (5 pts minor, 15 pts major)
         int blueFoulPts = match.getRedScore().getMinorFouls() * 5 + match.getRedScore().getMajorFouls() * 15;

@@ -73,7 +73,7 @@ public class DecodeScore {
     /**
      * Calculate BASE return points
      */
-    private int getBasePoints() {
+    public int getBasePoints() {
         int points = 0;
         
         boolean robot1Full = (robot1Base == BaseStatus.FULLY_IN_BASE);
