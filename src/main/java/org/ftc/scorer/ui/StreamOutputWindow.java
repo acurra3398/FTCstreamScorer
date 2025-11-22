@@ -141,6 +141,30 @@ public class StreamOutputWindow {
         return bar;
     }
     
+    /**
+     * Update the score bar layout based on match mode
+     */
+    public void updateScoreBarForMode() {
+        // Rebuild score bar based on solo mode
+        scoreBar.getChildren().clear();
+        
+        if (match.isSingleTeamMode()) {
+            // Solo mode: grey bar spanning full width with only red team
+            VBox soloBox = createDetailedScoreBox("SOLO MODE", Color.rgb(120, 120, 120), true);
+            HBox.setHgrow(soloBox, Priority.ALWAYS);
+            scoreBar.getChildren().add(soloBox);
+        } else {
+            // Traditional mode: split red/blue
+            VBox redBox = createDetailedScoreBox("RED", Color.rgb(211, 47, 47), true);
+            HBox.setHgrow(redBox, Priority.ALWAYS);
+            
+            VBox blueBox = createDetailedScoreBox("BLUE", Color.rgb(25, 118, 210), false);
+            HBox.setHgrow(blueBox, Priority.ALWAYS);
+            
+            scoreBar.getChildren().addAll(redBox, blueBox);
+        }
+    }
+    
     private VBox createDetailedScoreBox(String allianceName, Color bgColor, boolean isRed) {
         VBox box = new VBox(8);
         box.setAlignment(Pos.CENTER);
@@ -319,9 +343,13 @@ public class StreamOutputWindow {
             phaseLabel.setTextFill(Color.LIGHTGREEN);
         }
         
-        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
-        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
-        teamNumbersLabel.setText("Red: " + redTeam + " vs Blue: " + blueTeam);
+        String redTeam = match.getRedTeamsDisplay();
+        String blueTeam = match.getBlueTeamsDisplay();
+        if (match.isSingleTeamMode()) {
+            teamNumbersLabel.setText("Red Alliance: " + redTeam + " (Solo Mode)");
+        } else {
+            teamNumbersLabel.setText("Red: " + redTeam + " vs Blue: " + blueTeam);
+        }
         
         // Update detailed breakdown
         updateDetailedBreakdown();
@@ -347,8 +375,8 @@ public class StreamOutputWindow {
         redFoulLabel.setText("Opp. Fouls: " + redFoulPoints + " pts");
         redMotifDisplayLabel.setText("Motif: " + motifText);
         
-        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
-        redTeamLabel.setText("Team: " + redTeam);
+        String redTeam = match.getRedTeamsDisplay();
+        redTeamLabel.setText(match.isSingleTeamMode() ? "Team: " + redTeam : "Teams: " + redTeam);
         
         // Blue Alliance breakdown
         int blueClassified = match.getBlueScore().getAutoClassified() + match.getBlueScore().getTeleopClassified();
@@ -366,8 +394,8 @@ public class StreamOutputWindow {
         blueFoulLabel.setText("Opp. Fouls: " + blueFoulPoints + " pts");
         blueMotifDisplayLabel.setText("Motif: " + motifText);
         
-        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
-        blueTeamLabel.setText("Team: " + blueTeam);
+        String blueTeam = match.getBlueTeamsDisplay();
+        blueTeamLabel.setText("Teams: " + blueTeam);
     }
     
     public void updateWebcamFrame(Image frame) {
@@ -376,45 +404,81 @@ public class StreamOutputWindow {
     
     /**
      * Show splash screen overlay with countdown and team info
+     * Uses DECODE background image
      */
     public void showSplashScreen(String countdown, String teamInfo, String matchType, String motif) {
         // Hide normal scoring elements
         topBar.setVisible(false);
         scoreBar.setVisible(false);
         
-        // Create splash overlay
-        VBox splashOverlay = new VBox(30);
-        splashOverlay.setAlignment(Pos.CENTER);
-        splashOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
+        // Create splash overlay with DECODE background
+        StackPane splashOverlay = new StackPane();
         splashOverlay.setPrefSize(1280, 720);
+        
+        // Try to load DECODE background image
+        try {
+            String backgroundPath = getClass().getResource("/images/decode_bg.svg").toString();
+            ImageView backgroundImage = new ImageView(new Image(backgroundPath));
+            backgroundImage.setPreserveRatio(false);
+            backgroundImage.setFitWidth(1280);
+            backgroundImage.setFitHeight(720);
+            splashOverlay.getChildren().add(backgroundImage);
+        } catch (Exception e) {
+            // Fallback to solid color if image not found
+            splashOverlay.setStyle("-fx-background-color: #1A237E;");
+        }
+        
+        // Dark overlay for text readability
+        Region darkOverlay = new Region();
+        darkOverlay.setPrefSize(1280, 720);
+        darkOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6);");
+        splashOverlay.getChildren().add(darkOverlay);
+        
+        // Content on top
+        VBox content = new VBox(30);
+        content.setAlignment(Pos.CENTER);
+        content.setPadding(new Insets(40));
+        
+        // DECODE logo/title at top
+        Label titleLabel = new Label("FTC DECODE 2025-2026");
+        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 42));
+        titleLabel.setTextFill(Color.WHITE);
+        titleLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 3);");
+        content.getChildren().add(titleLabel);
         
         if (!countdown.isEmpty()) {
             Label countdownLabel = new Label(countdown);
-            countdownLabel.setFont(Font.font("Arial", FontWeight.BOLD, 180));
-            countdownLabel.setTextFill(Color.WHITE);
-            splashOverlay.getChildren().add(countdownLabel);
+            countdownLabel.setFont(Font.font("Arial", FontWeight.BOLD, 220));
+            countdownLabel.setTextFill(Color.rgb(255, 235, 59)); // Bright yellow
+            countdownLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.9), 15, 0, 0, 5);");
+            content.getChildren().add(countdownLabel);
         }
         
         if (!teamInfo.isEmpty()) {
             Label teamLabel = new Label(teamInfo);
-            teamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 48));
+            teamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 52));
             teamLabel.setTextFill(Color.WHITE);
-            splashOverlay.getChildren().add(teamLabel);
+            teamLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 3);");
+            content.getChildren().add(teamLabel);
         }
         
         if (!matchType.isEmpty()) {
             Label typeLabel = new Label(matchType);
-            typeLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 32));
-            typeLabel.setTextFill(Color.LIGHTBLUE);
-            splashOverlay.getChildren().add(typeLabel);
+            typeLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
+            typeLabel.setTextFill(Color.rgb(100, 181, 246)); // Light blue
+            typeLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 8, 0, 0, 2);");
+            content.getChildren().add(typeLabel);
         }
         
         if (!motif.isEmpty()) {
             Label motifLabel = new Label(motif);
-            motifLabel.setFont(Font.font("Arial", FontWeight.BOLD, 28));
-            motifLabel.setTextFill(Color.YELLOW);
-            splashOverlay.getChildren().add(motifLabel);
+            motifLabel.setFont(Font.font("Arial", FontWeight.BOLD, 32));
+            motifLabel.setTextFill(Color.rgb(255, 235, 59)); // Bright yellow
+            motifLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 8, 0, 0, 2);");
+            content.getChildren().add(motifLabel);
         }
+        
+        splashOverlay.getChildren().add(content);
         
         // Add splash to root (on top of webcam)
         root.getChildren().add(splashOverlay);

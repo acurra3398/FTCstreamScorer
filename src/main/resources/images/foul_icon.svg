@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Placeholder icon for FOULS -->
+  <polygon points="24,6 28,18 40,18 30,26 34,38 24,30 14,38 18,26 8,18 20,18" fill="#FFC107" stroke="#F57C00" stroke-width="2"/>
+  <text x="24" y="24" font-family="Arial" font-size="16" font-weight="bold" fill="#D84315" text-anchor="middle">!</text>
+  <text x="24" y="44" font-family="Arial" font-size="8" fill="#FFC107" text-anchor="middle">FOUL</text>
+</svg>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Placeholder icon for LEAVE/PARK scoring -->
+  <path d="M 24 8 L 28 18 L 24 22 L 20 18 Z" fill="#FF5722" stroke="#D84315" stroke-width="2"/>
+  <rect x="22" y="22" width="4" height="12" fill="#FF5722"/>
+  <path d="M 18 30 L 24 38 L 30 30 Z" fill="#FFC107"/>
+  <text x="24" y="44" font-family="Arial" font-size="8" fill="#FF5722" text-anchor="middle">LEAVE</text>
+</svg>

@@ -26,9 +26,11 @@ public class ControlWindow {
     private final StreamOutputWindow streamWindow;
     private final org.ftc.scorer.service.AudioService audioService;
     
-    // Team input
-    private TextField redTeamField;
-    private TextField blueTeamField;
+    // Team input - alliances have 2 teams each
+    private TextField redTeam1Field;
+    private TextField redTeam2Field;
+    private TextField blueTeam1Field;
+    private TextField blueTeam2Field;
     
     // MOTIF selector
     private ComboBox<DecodeScore.MotifType> motifSelector;
@@ -88,41 +90,89 @@ public class ControlWindow {
     }
     
     private VBox createMatchControls() {
-        VBox box = new VBox(10);
-        box.setPadding(new Insets(10));
-        box.setStyle("-fx-background-color: #f0f0f0; -fx-background-radius: 5;");
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(15));
+        box.setStyle("-fx-background-color: #f5f5f5; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 10, 0, 0, 2);");
         
-        Label title = new Label("Match Control - DECODE 2025-2026");
-        title.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
+        Label title = new Label("🏆 Match Control - DECODE 2025-2026");
+        title.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #1976D2;");
         
-        HBox controls = new HBox(15);
-        controls.setAlignment(Pos.CENTER_LEFT);
+        // First row: Team numbers and Solo Mode
+        HBox teamRow = new HBox(15);
+        teamRow.setAlignment(Pos.CENTER_LEFT);
         
-        // Team numbers
-        Label redTeamLabel = new Label("Red Team #:");
-        redTeamField = new TextField(match.getRedTeamNumber());
-        redTeamField.setPrefWidth(80);
-        redTeamField.setPromptText("0000");
-        redTeamField.textProperty().addListener((obs, old, newVal) -> match.setRedTeamNumber(newVal));
+        // RED ALLIANCE (2 teams)
+        Label redAllianceLabel = new Label("RED ALLIANCE:");
+        redAllianceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #D32F2F;");
         
-        Label blueTeamLabel = new Label("Blue Team #:");
-        blueTeamField = new TextField(match.getBlueTeamNumber());
-        blueTeamField.setPrefWidth(80);
-        blueTeamField.setPromptText("0000");
-        blueTeamField.textProperty().addListener((obs, old, newVal) -> match.setBlueTeamNumber(newVal));
+        Label redTeam1Label = new Label("Team 1:");
+        redTeam1Field = new TextField(match.getRedTeam1Number());
+        redTeam1Field.setPrefWidth(100);
+        redTeam1Field.setPromptText("0000");
+        redTeam1Field.setStyle("-fx-font-size: 14;");
+        redTeam1Field.textProperty().addListener((obs, old, newVal) -> match.setRedTeam1Number(newVal));
+        
+        Label redTeam2Label = new Label("Team 2:");
+        redTeam2Field = new TextField(match.getRedTeam2Number());
+        redTeam2Field.setPrefWidth(100);
+        redTeam2Field.setPromptText("0000");
+        redTeam2Field.setStyle("-fx-font-size: 14;");
+        redTeam2Field.textProperty().addListener((obs, old, newVal) -> match.setRedTeam2Number(newVal));
+        
+        // BLUE ALLIANCE (2 teams)
+        Label blueAllianceLabel = new Label("BLUE ALLIANCE:");
+        blueAllianceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #1976D2;");
+        
+        Label blueTeam1Label = new Label("Team 1:");
+        blueTeam1Field = new TextField(match.getBlueTeam1Number());
+        blueTeam1Field.setPrefWidth(100);
+        blueTeam1Field.setPromptText("0000");
+        blueTeam1Field.setStyle("-fx-font-size: 14;");
+        blueTeam1Field.textProperty().addListener((obs, old, newVal) -> match.setBlueTeam1Number(newVal));
+        
+        Label blueTeam2Label = new Label("Team 2:");
+        blueTeam2Field = new TextField(match.getBlueTeam2Number());
+        blueTeam2Field.setPrefWidth(100);
+        blueTeam2Field.setPromptText("0000");
+        blueTeam2Field.setStyle("-fx-font-size: 14;");
+        blueTeam2Field.textProperty().addListener((obs, old, newVal) -> match.setBlueTeam2Number(newVal));
+        
+        // Solo Mode checkbox - prominent
+        soloModeCheckBox = new CheckBox("SOLO MODE");
+        soloModeCheckBox.setStyle("-fx-font-weight: bold; -fx-font-size: 16; -fx-text-fill: #FF5722;");
+        soloModeCheckBox.setSelected(false);
+        soloModeCheckBox.setOnAction(e -> {
+            boolean soloMode = soloModeCheckBox.isSelected();
+            match.setMatchType(soloMode ? Match.MatchType.SINGLE_TEAM_DEMO : Match.MatchType.TRADITIONAL_MATCH);
+            updateSoloModeUI(soloMode);
+        });
+        
+        teamRow.getChildren().addAll(
+            redAllianceLabel, redTeam1Label, redTeam1Field, redTeam2Label, redTeam2Field,
+            new Label("    "), // Spacer
+            blueAllianceLabel, blueTeam1Label, blueTeam1Field, blueTeam2Label, blueTeam2Field,
+            new Label("    "), // Spacer
+            soloModeCheckBox
+        );
+        
+        // Second row: MOTIF and Webcam
+        HBox configRow = new HBox(15);
+        configRow.setAlignment(Pos.CENTER_LEFT);
         
         // MOTIF selector and randomizer
-        Label motifLabel = new Label("MOTIF:");
+        Label motifLabel = new Label("🎨 MOTIF:");
+        motifLabel.setStyle("-fx-font-weight: bold;");
         motifSelector = new ComboBox<>();
         motifSelector.getItems().addAll(DecodeScore.MotifType.values());
         motifSelector.setValue(DecodeScore.MotifType.PPG);
+        motifSelector.setStyle("-fx-font-size: 13;");
         motifSelector.setOnAction(e -> {
             match.getRedScore().setMotif(motifSelector.getValue());
             match.getBlueScore().setMotif(motifSelector.getValue());
         });
         
-        Button randomizeMotifButton = new Button("🎲 Randomize MOTIF");
-        randomizeMotifButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
+        Button randomizeMotifButton = new Button("🎲 Randomize");
+        randomizeMotifButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
         randomizeMotifButton.setOnAction(e -> {
             DecodeScore.MotifType randomMotif = DecodeScore.MotifType.randomize();
             motifSelector.setValue(randomMotif);
@@ -131,8 +181,10 @@ public class ControlWindow {
         });
         
         // Webcam selector
-        Label webcamLabel = new Label("Webcam:");
+        Label webcamLabel = new Label("📹 Webcam:");
+        webcamLabel.setStyle("-fx-font-weight: bold;");
         webcamSelector = new ComboBox<>();
+        webcamSelector.setStyle("-fx-font-size: 13;");
         List<Webcam> webcams = webcamService.getAvailableWebcams();
         for (Webcam webcam : webcams) {
             webcamSelector.getItems().add(webcam.getName());
@@ -146,6 +198,8 @@ public class ControlWindow {
                 webcamService.start(webcams.get(index));
             }
         });
+        
+        configRow.getChildren().addAll(motifLabel, motifSelector, randomizeMotifButton, webcamLabel, webcamSelector);
         
         // Match control buttons
         startButton = new Button("Start Match");
@@ -171,11 +225,65 @@ public class ControlWindow {
             pauseButton.setText("Pause");
         });
         
+        // Big, clear action buttons row
+        HBox bigButtonsRow = new HBox(15);
+        bigButtonsRow.setAlignment(Pos.CENTER);
+        bigButtonsRow.setPadding(new Insets(10, 0, 10, 0));
+        
+        // Stream Countdown button - MOST PROMINENT for starting
+        countdownButton = new Button("SHOW STREAM COUNTDOWN");
+        countdownButton.setStyle("-fx-background-color: #FF5722; -fx-text-fill: white; -fx-font-weight: bold; " +
+                                 "-fx-font-size: 18; -fx-padding: 15 30; -fx-background-radius: 8; " +
+                                 "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 8, 0, 0, 2);");
+        countdownButton.setOnAction(e -> showStreamCountdown());
+        
+        startButton = new Button("START MATCH");
+        startButton.setStyle("-fx-font-size: 18; -fx-font-weight: bold; -fx-background-color: #4CAF50; " +
+                            "-fx-text-fill: white; -fx-padding: 15 30; -fx-background-radius: 8; " +
+                            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 8, 0, 0, 2);");
+        startButton.setOnAction(e -> matchTimer.startMatch());
+        
+        bigButtonsRow.getChildren().addAll(countdownButton, startButton);
+        
+        // Secondary control buttons row
+        HBox controlButtonsRow = new HBox(10);
+        controlButtonsRow.setAlignment(Pos.CENTER);
+        
+        pauseButton = new Button("PAUSE");
+        pauseButton.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-padding: 10 25; " +
+                            "-fx-background-radius: 5;");
+        pauseButton.setOnAction(e -> {
+            if (pauseButton.getText().equals("PAUSE")) {
+                matchTimer.pauseMatch();
+                pauseButton.setText("RESUME");
+                pauseButton.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-padding: 10 25; " +
+                                    "-fx-background-color: #2196F3; -fx-text-fill: white; -fx-background-radius: 5;");
+            } else {
+                matchTimer.resumeMatch();
+                pauseButton.setText("PAUSE");
+                pauseButton.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-padding: 10 25; " +
+                                    "-fx-background-radius: 5;");
+            }
+        });
+        
+        resetButton = new Button("RESET MATCH");
+        resetButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; " +
+                            "-fx-font-size: 14; -fx-padding: 10 25; -fx-background-radius: 5;");
+        resetButton.setOnAction(e -> {
+            matchTimer.resetMatch();
+            resetAllControls();
+            pauseButton.setText("PAUSE");
+            pauseButton.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-padding: 10 25; " +
+                                "-fx-background-radius: 5;");
+        });
+        
         Button showStreamButton = new Button("Show Stream Window");
+        showStreamButton.setStyle("-fx-font-size: 13; -fx-padding: 8 20; -fx-background-radius: 5;");
         showStreamButton.setOnAction(e -> streamWindow.show());
         
-        showBreakdownButton = new Button("📊 Show Breakdown on Stream");
-        showBreakdownButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
+        showBreakdownButton = new Button("SHOW FINAL RESULTS");
+        showBreakdownButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white; -fx-font-weight: bold; " +
+                                     "-fx-font-size: 16; -fx-padding: 12 25; -fx-background-radius: 5;");
         showBreakdownButton.setDisable(true); // Disabled until match finishes
         showBreakdownButton.setOnAction(e -> {
             streamWindow.showBreakdownOverlay();
@@ -183,32 +291,13 @@ public class ControlWindow {
             match.setState(Match.MatchState.FINISHED);
         });
         
-        // Solo Mode checkbox
-        soloModeCheckBox = new CheckBox("Solo Mode");
-        soloModeCheckBox.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
-        soloModeCheckBox.setSelected(false);
-        soloModeCheckBox.setOnAction(e -> {
-            boolean soloMode = soloModeCheckBox.isSelected();
-            match.setMatchType(soloMode ? Match.MatchType.SINGLE_TEAM_DEMO : Match.MatchType.TRADITIONAL_MATCH);
-            updateSoloModeUI(soloMode);
-        });
+        controlButtonsRow.getChildren().addAll(pauseButton, resetButton, showStreamButton, showBreakdownButton);
         
-        // Stream Countdown button
-        countdownButton = new Button("🎬 Show Stream Countdown");
-        countdownButton.setStyle("-fx-background-color: #FF5722; -fx-text-fill: white; -fx-font-weight: bold;");
-        countdownButton.setOnAction(e -> showStreamCountdown());
+        // Add separator
+        Separator separator1 = new Separator();
+        Separator separator2 = new Separator();
         
-        controls.getChildren().addAll(
-            redTeamLabel, redTeamField,
-            blueTeamLabel, blueTeamField,
-            motifLabel, motifSelector, randomizeMotifButton,
-            webcamLabel, webcamSelector,
-            soloModeCheckBox,
-            startButton, pauseButton, resetButton, 
-            countdownButton, showStreamButton, showBreakdownButton
-        );
-        
-        box.getChildren().addAll(title, controls);
+        box.getChildren().addAll(title, teamRow, separator1, configRow, separator2, bigButtonsRow, controlButtonsRow);
         return box;
     }
     
@@ -561,20 +650,33 @@ public class ControlWindow {
      */
     private void updateSoloModeUI(boolean soloMode) {
         if (soloMode) {
-            // In solo mode, hide blue alliance or indicate it's not used
-            blueTeamField.setDisable(true);
-            blueTeamField.setText("N/A");
-            blueTeamField.setPromptText("Solo Mode");
+            // In solo mode, disable blue alliance fields
+            blueTeam1Field.setDisable(true);
+            blueTeam2Field.setDisable(true);
+            blueTeam1Field.setText("N/A");
+            blueTeam2Field.setText("N/A");
+            blueTeam1Field.setPromptText("Solo Mode");
+            blueTeam2Field.setPromptText("Solo Mode");
+            blueTeam1Field.setStyle("-fx-font-size: 14; -fx-opacity: 0.5;");
+            blueTeam2Field.setStyle("-fx-font-size: 14; -fx-opacity: 0.5;");
         } else {
             // Normal mode
-            blueTeamField.setDisable(false);
-            blueTeamField.setText("");
-            blueTeamField.setPromptText("0000");
+            blueTeam1Field.setDisable(false);
+            blueTeam2Field.setDisable(false);
+            blueTeam1Field.setText("");
+            blueTeam2Field.setText("");
+            blueTeam1Field.setPromptText("0000");
+            blueTeam2Field.setPromptText("0000");
+            blueTeam1Field.setStyle("-fx-font-size: 14;");
+            blueTeam2Field.setStyle("-fx-font-size: 14;");
         }
+        
+        // Update stream output layout
+        streamWindow.updateScoreBarForMode();
     }
     
     /**
-     * Show stream countdown
+     * Show stream countdown - Easy to activate with prominent button
      */
     private void showStreamCountdown() {
         // Show a 5-second countdown on stream
@@ -582,13 +684,13 @@ public class ControlWindow {
             for (int i = 5; i >= 1; i--) {
                 final int count = i;
                 javafx.application.Platform.runLater(() -> {
-                    String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
-                    String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+                    String redTeam = match.getRedTeamsDisplay();
+                    String blueTeam = match.getBlueTeamsDisplay();
                     String matchType = match.isSingleTeamMode() ? "Solo Demo Mode" : "2v2 Alliance Match";
                     String motif = "MOTIF: " + match.getRedScore().getMotif().getDisplayName();
                     
                     String teamInfo = match.isSingleTeamMode() ? 
-                        "Red Alliance: Team " + redTeam :
+                        "Red Alliance: " + redTeam :
                         "Red: " + redTeam + " vs Blue: " + blueTeam;
                     
                     streamWindow.showSplashScreen(String.valueOf(count), teamInfo, matchType, motif);
