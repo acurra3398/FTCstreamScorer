@@ -17,8 +17,8 @@ public class ScorerApplication extends Application {
     
     @Override
     public void start(Stage primaryStage) {
-        // Create model
-        Match match = new Match("Q1");
+        // Create model - start with empty team numbers
+        Match match = new Match("", "");
         
         // Create services
         AudioService audioService = new AudioService();
@@ -27,7 +27,7 @@ public class ScorerApplication extends Application {
         
         // Create windows
         StreamOutputWindow streamWindow = new StreamOutputWindow(match, matchTimer);
-        ControlWindow controlWindow = new ControlWindow(match, matchTimer, webcamService, streamWindow);
+        ControlWindow controlWindow = new ControlWindow(match, matchTimer, webcamService, streamWindow, audioService);
         
         // Connect webcam to stream window
         webcamService.setFrameListener(streamWindow::updateWebcamFrame);

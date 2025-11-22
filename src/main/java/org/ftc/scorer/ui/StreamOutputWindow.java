@@ -28,9 +28,11 @@ public class StreamOutputWindow {
     private Label blueScoreLabel;
     private Label timerLabel;
     private Label phaseLabel;
-    private Label matchNumberLabel;
+    private Label teamNumbersLabel;
     
     private StackPane root;
+    private HBox topBar;
+    private HBox scoreBar;
     
     public StreamOutputWindow(Match match, MatchTimer matchTimer) {
         this.match = match;
@@ -69,10 +71,10 @@ public class StreamOutputWindow {
         overlay.setPadding(new Insets(20));
         
         // Top bar with match info and timer
-        HBox topBar = createTopBar();
+        topBar = createTopBar();
         
         // Bottom bar with scores
-        HBox scoreBar = createScoreBar();
+        scoreBar = createScoreBar();
         
         // Position elements
         VBox.setVgrow(topBar, Priority.NEVER);
@@ -85,15 +87,17 @@ public class StreamOutputWindow {
     }
     
     private HBox createTopBar() {
-        HBox topBar = new HBox(20);
-        topBar.setAlignment(Pos.CENTER);
-        topBar.setPadding(new Insets(10, 20, 10, 20));
-        topBar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 10;");
+        HBox bar = new HBox(20);
+        bar.setAlignment(Pos.CENTER);
+        bar.setPadding(new Insets(10, 20, 10, 20));
+        bar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 10;");
         
-        // Match number
-        matchNumberLabel = new Label("Match: " + match.getMatchNumber());
-        matchNumberLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        matchNumberLabel.setTextFill(Color.WHITE);
+        // Team numbers
+        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
+        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+        teamNumbersLabel = new Label("Red: " + redTeam + " vs Blue: " + blueTeam);
+        teamNumbersLabel.setFont(Font.font("Arial", FontWeight.BOLD, 20));
+        teamNumbersLabel.setTextFill(Color.WHITE);
         
         // Timer
         timerLabel = new Label("2:30");
@@ -105,15 +109,15 @@ public class StreamOutputWindow {
         phaseLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
         phaseLabel.setTextFill(Color.YELLOW);
         
-        topBar.getChildren().addAll(matchNumberLabel, timerLabel, phaseLabel);
+        bar.getChildren().addAll(teamNumbersLabel, timerLabel, phaseLabel);
         
-        return topBar;
+        return bar;
     }
     
     private HBox createScoreBar() {
-        HBox scoreBar = new HBox(40);
-        scoreBar.setAlignment(Pos.CENTER);
-        scoreBar.setPadding(new Insets(20));
+        HBox bar = new HBox(40);
+        bar.setAlignment(Pos.CENTER);
+        bar.setPadding(new Insets(20));
         
         // Red Alliance Score
         VBox redBox = createScoreBox("RED", Color.RED);
@@ -129,9 +133,9 @@ public class StreamOutputWindow {
         VBox blueBox = createScoreBox("BLUE", Color.BLUE);
         blueScoreLabel = (Label) ((VBox) blueBox.getChildren().get(0)).getChildren().get(1);
         
-        scoreBar.getChildren().addAll(redBox, vsLabel, blueBox);
+        bar.getChildren().addAll(redBox, vsLabel, blueBox);
         
-        return scoreBar;
+        return bar;
     }
     
     private VBox createScoreBox(String allianceName, Color color) {
@@ -169,15 +173,79 @@ public class StreamOutputWindow {
     }
     
     private void updateScores() {
-        redScoreLabel.setText(String.valueOf(match.getRedScore().calculateTotalScore()));
-        blueScoreLabel.setText(String.valueOf(match.getBlueScore().calculateTotalScore()));
+        // Use match methods which include opponent penalties
+        redScoreLabel.setText(String.valueOf(match.getRedTotalScore()));
+        blueScoreLabel.setText(String.valueOf(match.getBlueTotalScore()));
         timerLabel.setText(matchTimer.getTimeString());
         phaseLabel.setText(matchTimer.currentPhaseProperty().get());
-        matchNumberLabel.setText("Match: " + match.getMatchNumber());
+        
+        String redTeam = match.getRedTeamNumber().isEmpty() ? "----" : match.getRedTeamNumber();
+        String blueTeam = match.getBlueTeamNumber().isEmpty() ? "----" : match.getBlueTeamNumber();
+        teamNumbersLabel.setText("Red: " + redTeam + " vs Blue: " + blueTeam);
     }
     
     public void updateWebcamFrame(Image frame) {
         webcamView.setImage(frame);
+    }
+    
+    /**
+     * Show splash screen overlay with countdown and team info
+     */
+    public void showSplashScreen(String countdown, String teamInfo, String matchType, String motif) {
+        // Hide normal scoring elements
+        topBar.setVisible(false);
+        scoreBar.setVisible(false);
+        
+        // Create splash overlay
+        VBox splashOverlay = new VBox(30);
+        splashOverlay.setAlignment(Pos.CENTER);
+        splashOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
+        splashOverlay.setPrefSize(1280, 720);
+        
+        if (!countdown.isEmpty()) {
+            Label countdownLabel = new Label(countdown);
+            countdownLabel.setFont(Font.font("Arial", FontWeight.BOLD, 180));
+            countdownLabel.setTextFill(Color.WHITE);
+            splashOverlay.getChildren().add(countdownLabel);
+        }
+        
+        if (!teamInfo.isEmpty()) {
+            Label teamLabel = new Label(teamInfo);
+            teamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 48));
+            teamLabel.setTextFill(Color.WHITE);
+            splashOverlay.getChildren().add(teamLabel);
+        }
+        
+        if (!matchType.isEmpty()) {
+            Label typeLabel = new Label(matchType);
+            typeLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 32));
+            typeLabel.setTextFill(Color.LIGHTBLUE);
+            splashOverlay.getChildren().add(typeLabel);
+        }
+        
+        if (!motif.isEmpty()) {
+            Label motifLabel = new Label(motif);
+            motifLabel.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+            motifLabel.setTextFill(Color.YELLOW);
+            splashOverlay.getChildren().add(motifLabel);
+        }
+        
+        // Add splash to root (on top of webcam)
+        root.getChildren().add(splashOverlay);
+    }
+    
+    /**
+     * Hide splash screen and show normal scoring
+     */
+    public void hideSplashScreen() {
+        // Remove splash overlay
+        if (root.getChildren().size() > 1) {
+            root.getChildren().remove(root.getChildren().size() - 1);
+        }
+        
+        // Show normal elements
+        topBar.setVisible(true);
+        scoreBar.setVisible(true);
     }
     
     public void show() {

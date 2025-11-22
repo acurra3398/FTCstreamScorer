@@ -5,181 +5,225 @@ import java.util.List;
 
 /**
  * DECODE game scoring model for FTC 2025-2026 season
+ * Official rules: ARTIFACTS (Purple/Green), GOAL scoring, PATTERNS on RAMPS, BASE return
  */
 public class DecodeScore {
-    // Auto scoring
-    private int autoClassifiedArtifacts = 0;
-    private int autoOverflowArtifacts = 0;
-    private ArtifactType[] autoClassifierState = new ArtifactType[3]; // 3 classifier bins
-    private RobotPosition robot1Auto = RobotPosition.NONE;
-    private RobotPosition robot2Auto = RobotPosition.NONE;
+    // MOTIF (randomized manually before match - one of 3 patterns: PPG, PGP, GPP)
+    private MotifType motif = MotifType.PPG;
     
-    // TeleOp scoring
-    private int teleopClassifiedArtifacts = 0;
-    private int teleopOverflowArtifacts = 0;
-    private int teleopDepotArtifacts = 0;
-    private ArtifactType[] teleopClassifierState = new ArtifactType[3]; // 3 classifier bins
-    private RobotPosition robot1Teleop = RobotPosition.NONE;
-    private RobotPosition robot2Teleop = RobotPosition.NONE;
+    // AUTO scoring (30 seconds)
+    private boolean robot1Leave = false;  // 3 points - moved off LAUNCH LINE
+    private boolean robot2Leave = false;  // 3 points - moved off LAUNCH LINE
+    private int autoClassified = 0;       // 3 points each - ARTIFACTS scored in GOAL (CLASSIFIED)
+    private int autoOverflow = 0;         // 1 point each - ARTIFACTS in OVERFLOW
+    
+    // AUTO PATTERN on RAMP (based on MOTIF)
+    private int autoPatternMatches = 0;   // 2 points each - ARTIFACTS matching MOTIF on RAMP
+    
+    // TELEOP scoring (2 minutes)
+    private int teleopClassified = 0;     // 3 points each - ARTIFACTS in CLASSIFIED
+    private int teleopOverflow = 0;       // 1 point each - ARTIFACTS in OVERFLOW  
+    private int teleopDepot = 0;          // 1 point each - ARTIFACTS in DEPOT
+    
+    // TELEOP PATTERN on RAMP (based on MOTIF)
+    private int teleopPatternMatches = 0; // 2 points each - ARTIFACTS matching MOTIF
+    
+    // BASE (end game)
+    private BaseStatus robot1Base = BaseStatus.NOT_IN_BASE;
+    private BaseStatus robot2Base = BaseStatus.NOT_IN_BASE;
     
     // Penalties
-    private int ownMajorFouls = 0;
-    private int ownMinorFouls = 0;
-    private int otherMajorFouls = 0;
-    private int otherMinorFouls = 0;
-    
-    // Violations
-    private List<String> violations = new ArrayList<>();
+    private int majorFouls = 0;
+    private int minorFouls = 0;
     
     public DecodeScore() {
-        // Initialize classifier states to NONE
-        for (int i = 0; i < 3; i++) {
-            autoClassifierState[i] = ArtifactType.NONE;
-            teleopClassifierState[i] = ArtifactType.NONE;
-        }
     }
     
     /**
-     * Calculate total score based on current state
+     * Calculate total MATCH points based on current state
      */
     public int calculateTotalScore() {
         int total = 0;
         
-        // Auto scoring
-        total += autoClassifiedArtifacts * 6; // 6 points per classified artifact in auto
-        total += autoOverflowArtifacts * 2; // 2 points per overflow artifact in auto
-        total += calculateClassifierStatePoints(autoClassifierState, true);
-        total += getRobotPositionPoints(robot1Auto, true);
-        total += getRobotPositionPoints(robot2Auto, true);
+        // AUTO - LEAVE (3 points each)
+        if (robot1Leave) total += 3;
+        if (robot2Leave) total += 3;
         
-        // TeleOp scoring
-        total += teleopClassifiedArtifacts * 3; // 3 points per classified artifact in teleop
-        total += teleopOverflowArtifacts * 1; // 1 point per overflow artifact in teleop
-        total += teleopDepotArtifacts * 2; // 2 points per depot artifact
-        total += calculateClassifierStatePoints(teleopClassifierState, false);
-        total += getRobotPositionPoints(robot1Teleop, false);
-        total += getRobotPositionPoints(robot2Teleop, false);
+        // AUTO - ARTIFACTS
+        total += autoClassified * 3;  // CLASSIFIED
+        total += autoOverflow * 1;     // OVERFLOW
         
-        // Penalties (opponent fouls benefit this alliance)
-        total += otherMajorFouls * 15; // Major fouls by opponent
-        total += otherMinorFouls * 5; // Minor fouls by opponent
+        // AUTO - PATTERN (matches MOTIF)
+        total += autoPatternMatches * 2;
         
-        // Own penalties (subtract from score)
-        total -= ownMajorFouls * 15;
-        total -= ownMinorFouls * 5;
+        // TELEOP - ARTIFACTS
+        total += teleopClassified * 3;  // CLASSIFIED
+        total += teleopOverflow * 1;    // OVERFLOW
+        total += teleopDepot * 1;       // DEPOT
         
-        return Math.max(0, total); // Score cannot go negative
+        // TELEOP - PATTERN (matches MOTIF)
+        total += teleopPatternMatches * 2;
+        
+        // BASE return
+        total += getBasePoints();
+        
+        return Math.max(0, total);
     }
     
-    private int calculateClassifierStatePoints(ArtifactType[] state, boolean isAuto) {
+    /**
+     * Calculate BASE return points
+     */
+    private int getBasePoints() {
         int points = 0;
-        int multiplier = isAuto ? 2 : 1; // Auto gets double points
         
-        // Check for correctly classified artifacts
-        for (ArtifactType type : state) {
-            if (type == ArtifactType.GREEN || type == ArtifactType.PURPLE) {
-                points += 3 * multiplier;
-            }
-        }
+        boolean robot1Full = (robot1Base == BaseStatus.FULLY_IN_BASE);
+        boolean robot2Full = (robot2Base == BaseStatus.FULLY_IN_BASE);
+        boolean robot1Partial = (robot1Base == BaseStatus.PARTIALLY_IN_BASE);
+        boolean robot2Partial = (robot2Base == BaseStatus.PARTIALLY_IN_BASE);
+        
+        // Partial BASE return (5 points each)
+        if (robot1Partial) points += 5;
+        if (robot2Partial) points += 5;
+        
+        // Full BASE return (10 points each)
+        if (robot1Full) points += 10;
+        if (robot2Full) points += 10;
+        
+        // Bonus: Both robots fully in BASE (10 points)
+        if (robot1Full && robot2Full) points += 10;
         
         return points;
     }
     
-    private int getRobotPositionPoints(RobotPosition position, boolean isAuto) {
-        switch (position) {
-            case BASE_LOW:
-                return isAuto ? 3 : 2;
-            case BASE_HIGH:
-                return isAuto ? 6 : 4;
-            case GATE:
-                return isAuto ? 10 : 6;
-            default:
-                return 0;
-        }
+    /**
+     * Calculate combined LEAVE + BASE points for MOVEMENT RP
+     */
+    public int getMovementPoints() {
+        int leavePoints = 0;
+        if (robot1Leave) leavePoints += 3;
+        if (robot2Leave) leavePoints += 3;
+        return leavePoints + getBasePoints();
+    }
+    
+    /**
+     * Get total CLASSIFIED artifacts for GOAL RP
+     */
+    public int getTotalClassified() {
+        return autoClassified + teleopClassified;
+    }
+    
+    /**
+     * Calculate PATTERN points for PATTERN RP
+     */
+    public int getPatternPoints() {
+        return (autoPatternMatches + teleopPatternMatches) * 2;
     }
     
     // Getters and setters
-    public int getAutoClassifiedArtifacts() { return autoClassifiedArtifacts; }
-    public void setAutoClassifiedArtifacts(int value) { this.autoClassifiedArtifacts = value; }
+    public MotifType getMotif() { return motif; }
+    public void setMotif(MotifType motif) { this.motif = motif; }
     
-    public int getAutoOverflowArtifacts() { return autoOverflowArtifacts; }
-    public void setAutoOverflowArtifacts(int value) { this.autoOverflowArtifacts = value; }
+    public boolean isRobot1Leave() { return robot1Leave; }
+    public void setRobot1Leave(boolean leave) { this.robot1Leave = leave; }
     
-    public ArtifactType[] getAutoClassifierState() { return autoClassifierState; }
-    public void setAutoClassifierState(ArtifactType[] state) { this.autoClassifierState = state; }
+    public boolean isRobot2Leave() { return robot2Leave; }
+    public void setRobot2Leave(boolean leave) { this.robot2Leave = leave; }
     
-    public RobotPosition getRobot1Auto() { return robot1Auto; }
-    public void setRobot1Auto(RobotPosition position) { this.robot1Auto = position; }
+    public int getAutoClassified() { return autoClassified; }
+    public void setAutoClassified(int value) { this.autoClassified = Math.max(0, value); }
     
-    public RobotPosition getRobot2Auto() { return robot2Auto; }
-    public void setRobot2Auto(RobotPosition position) { this.robot2Auto = position; }
+    public int getAutoOverflow() { return autoOverflow; }
+    public void setAutoOverflow(int value) { this.autoOverflow = Math.max(0, value); }
     
-    public int getTeleopClassifiedArtifacts() { return teleopClassifiedArtifacts; }
-    public void setTeleopClassifiedArtifacts(int value) { this.teleopClassifiedArtifacts = value; }
+    public int getAutoPatternMatches() { return autoPatternMatches; }
+    public void setAutoPatternMatches(int value) { this.autoPatternMatches = Math.max(0, value); }
     
-    public int getTeleopOverflowArtifacts() { return teleopOverflowArtifacts; }
-    public void setTeleopOverflowArtifacts(int value) { this.teleopOverflowArtifacts = value; }
+    public int getTeleopClassified() { return teleopClassified; }
+    public void setTeleopClassified(int value) { this.teleopClassified = Math.max(0, value); }
     
-    public int getTeleopDepotArtifacts() { return teleopDepotArtifacts; }
-    public void setTeleopDepotArtifacts(int value) { this.teleopDepotArtifacts = value; }
+    public int getTeleopOverflow() { return teleopOverflow; }
+    public void setTeleopOverflow(int value) { this.teleopOverflow = Math.max(0, value); }
     
-    public ArtifactType[] getTeleopClassifierState() { return teleopClassifierState; }
-    public void setTeleopClassifierState(ArtifactType[] state) { this.teleopClassifierState = state; }
+    public int getTeleopDepot() { return teleopDepot; }
+    public void setTeleopDepot(int value) { this.teleopDepot = Math.max(0, value); }
     
-    public RobotPosition getRobot1Teleop() { return robot1Teleop; }
-    public void setRobot1Teleop(RobotPosition position) { this.robot1Teleop = position; }
+    public int getTeleopPatternMatches() { return teleopPatternMatches; }
+    public void setTeleopPatternMatches(int value) { this.teleopPatternMatches = Math.max(0, value); }
     
-    public RobotPosition getRobot2Teleop() { return robot2Teleop; }
-    public void setRobot2Teleop(RobotPosition position) { this.robot2Teleop = position; }
+    public BaseStatus getRobot1Base() { return robot1Base; }
+    public void setRobot1Base(BaseStatus status) { this.robot1Base = status; }
     
-    public int getOwnMajorFouls() { return ownMajorFouls; }
-    public void setOwnMajorFouls(int value) { this.ownMajorFouls = value; }
+    public BaseStatus getRobot2Base() { return robot2Base; }
+    public void setRobot2Base(BaseStatus status) { this.robot2Base = status; }
     
-    public int getOwnMinorFouls() { return ownMinorFouls; }
-    public void setOwnMinorFouls(int value) { this.ownMinorFouls = value; }
+    public int getMajorFouls() { return majorFouls; }
+    public void setMajorFouls(int value) { this.majorFouls = Math.max(0, value); }
     
-    public int getOtherMajorFouls() { return otherMajorFouls; }
-    public void setOtherMajorFouls(int value) { this.otherMajorFouls = value; }
-    
-    public int getOtherMinorFouls() { return otherMinorFouls; }
-    public void setOtherMinorFouls(int value) { this.otherMinorFouls = value; }
-    
-    public List<String> getViolations() { return violations; }
-    public void setViolations(List<String> violations) { this.violations = violations; }
+    public int getMinorFouls() { return minorFouls; }
+    public void setMinorFouls(int value) { this.minorFouls = Math.max(0, value); }
     
     public void reset() {
-        autoClassifiedArtifacts = 0;
-        autoOverflowArtifacts = 0;
-        teleopClassifiedArtifacts = 0;
-        teleopOverflowArtifacts = 0;
-        teleopDepotArtifacts = 0;
-        robot1Auto = RobotPosition.NONE;
-        robot2Auto = RobotPosition.NONE;
-        robot1Teleop = RobotPosition.NONE;
-        robot2Teleop = RobotPosition.NONE;
-        ownMajorFouls = 0;
-        ownMinorFouls = 0;
-        otherMajorFouls = 0;
-        otherMinorFouls = 0;
-        violations.clear();
+        motif = MotifType.PPG;  // Will be randomized at match start
+        robot1Leave = false;
+        robot2Leave = false;
+        autoClassified = 0;
+        autoOverflow = 0;
+        autoPatternMatches = 0;
+        teleopClassified = 0;
+        teleopOverflow = 0;
+        teleopDepot = 0;
+        teleopPatternMatches = 0;
+        robot1Base = BaseStatus.NOT_IN_BASE;
+        robot2Base = BaseStatus.NOT_IN_BASE;
+        majorFouls = 0;
+        minorFouls = 0;
+    }
+    
+    /**
+     * MOTIF types shown by OBELISK (randomized at match start)
+     * Purple = P, Green = G
+     */
+    public enum MotifType {
+        PPG("PPG (Purple-Purple-Green)"),
+        PGP("PGP (Purple-Green-Purple)"),
+        GPP("GPP (Green-Purple-Purple)");
         
-        for (int i = 0; i < 3; i++) {
-            autoClassifierState[i] = ArtifactType.NONE;
-            teleopClassifierState[i] = ArtifactType.NONE;
+        private final String displayName;
+        
+        MotifType(String displayName) {
+            this.displayName = displayName;
+        }
+        
+        public String getDisplayName() {
+            return displayName;
+        }
+        
+        /**
+         * Randomize MOTIF (simulates OBELISK randomization)
+         */
+        public static MotifType randomize() {
+            MotifType[] values = values();
+            int index = (int) (Math.random() * values.length);
+            return values[index];
         }
     }
     
-    public enum ArtifactType {
-        NONE,
-        GREEN,
-        PURPLE,
-        WHITE
-    }
-    
-    public enum RobotPosition {
-        NONE,
-        BASE_LOW,
-        BASE_HIGH,
-        GATE
+    /**
+     * BASE return status
+     */
+    public enum BaseStatus {
+        NOT_IN_BASE("Not in BASE"),
+        PARTIALLY_IN_BASE("Partially in BASE"),
+        FULLY_IN_BASE("Fully in BASE");
+        
+        private final String displayName;
+        
+        BaseStatus(String displayName) {
+            this.displayName = displayName;
+        }
+        
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 }
