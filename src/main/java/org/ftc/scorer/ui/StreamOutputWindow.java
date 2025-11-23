@@ -300,39 +300,17 @@ public class StreamOutputWindow {
     }
     
     /**
-     * Load icon from resources (PNG or SVG)
+     * Create emoji label for icon
      */
-    private ImageView loadIcon(String iconName, int size) {
-        try {
-            // Try PNG first
-            java.net.URL pngResource = getClass().getResource("/images/" + iconName + ".png");
-            if (pngResource != null) {
-                Image image = new Image(pngResource.toString(), size, size, true, true);
-                ImageView imageView = new ImageView(image);
-                imageView.setFitWidth(size);
-                imageView.setFitHeight(size);
-                return imageView;
-            }
-            
-            // Try SVG
-            java.net.URL svgResource = getClass().getResource("/images/" + iconName + ".svg");
-            if (svgResource != null) {
-                Image image = new Image(svgResource.toString(), size, size, true, true);
-                ImageView imageView = new ImageView(image);
-                imageView.setFitWidth(size);
-                imageView.setFitHeight(size);
-                return imageView;
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to load icon: " + iconName);
-        }
-        
-        // Fallback: return empty ImageView
-        return new ImageView();
+    private Label createEmojiLabel(String iconName, int size) {
+        String emoji = EmojiConfig.getEmoji(iconName);
+        Label label = new Label(emoji);
+        label.setFont(Font.font("Arial", size));
+        return label;
     }
     
     /**
-     * Create a small white info box with icon and value
+     * Create a small white info box with emoji icon and value
      * Returns a LabeledBox with both the box and the label for easy access
      */
     private LabeledBox createInfoBox(String iconName, String value, Color color, int width) {
@@ -346,8 +324,8 @@ public class StreamOutputWindow {
         VBox content = new VBox(2);
         content.setAlignment(Pos.CENTER);
         
-        // Load icon (PNG or SVG)
-        ImageView icon = loadIcon(iconName, 24);
+        // Use emoji icon
+        Label icon = createEmojiLabel(iconName, 24);
         
         Label valueText = new Label(value);
         valueText.setFont(Font.font("Arial", FontWeight.BOLD, 16));
@@ -360,7 +338,7 @@ public class StreamOutputWindow {
     }
     
     /**
-     * Create a stacked info box with two categories (icon images)
+     * Create a stacked info box with two categories (emoji icons)
      * Returns a StackedLabeledBox with the box and both labels for easy access
      */
     private StackedLabeledBox createStackedInfoBox(String iconName1, String value1, String iconName2, String value2, Color color, int width) {
@@ -376,7 +354,7 @@ public class StreamOutputWindow {
         topSection.setPadding(new Insets(6, 8, 6, 8));
         topSection.setStyle("-fx-background-color: white;");
         
-        ImageView topIcon = loadIcon(iconName1, 20);
+        Label topIcon = createEmojiLabel(iconName1, 20);
         
         Label topValue = new Label(value1);
         topValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));
@@ -395,7 +373,7 @@ public class StreamOutputWindow {
         bottomSection.setPadding(new Insets(6, 8, 6, 8));
         bottomSection.setStyle("-fx-background-color: white;");
         
-        ImageView bottomIcon = loadIcon(iconName2, 20);
+        Label bottomIcon = createEmojiLabel(iconName2, 20);
         
         Label bottomValue = new Label(value2);
         bottomValue.setFont(Font.font("Arial", FontWeight.BOLD, 14));

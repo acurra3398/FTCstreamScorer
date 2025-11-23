@@ -5,6 +5,8 @@ import javafx.scene.media.MediaPlayer;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
 
 /**
  * Service for playing audio effects during matches
@@ -12,16 +14,16 @@ import java.util.Map;
 public class AudioService {
     private final Map<String, Media> audioCache = new HashMap<>();
     private MediaPlayer currentPlayer;
+    private final List<MediaPlayer> activePlayers = new CopyOnWriteArrayList<>();
     
     public AudioService() {
         // Preload all audio files
         loadAudio("countdown", "/audio/countdown.wav");
+        loadAudio("matchstart", "/audio/startmatch.mp3");
         loadAudio("endauto", "/audio/endauto.wav");
         loadAudio("transition", "/audio/transition.mp3");
-        loadAudio("endgamestart", "/audio/endgame_start.mp3");
-        loadAudio("endmatch", "/audio/endmatch.mp3");
-        loadAudio("startmatch", "/audio/startmatch.mp3");
-        loadAudio("charge", "/audio/charge.wav");
+        loadAudio("endgame", "/audio/endgame_start.mp3");
+        loadAudio("matchend", "/audio/endmatch.mp3");
         loadAudio("results", "/audio/results.wav");
     }
     
@@ -40,56 +42,62 @@ public class AudioService {
         }
     }
     
-    private void playAudio(String key) {
-        playAudio(key, null);
-    }
-    
     private void playAudio(String key, Runnable onFinished) {
         Media media = audioCache.get(key);
         if (media != null) {
-            // Stop current player if playing
-            if (currentPlayer != null) {
-                currentPlayer.stop();
-            }
-            
-            currentPlayer = new MediaPlayer(media);
-            currentPlayer.setOnEndOfMedia(() -> {
+            MediaPlayer player = new MediaPlayer(media);
+            activePlayers.add(player);
+            player.setOnEndOfMedia(() -> {
                 if (onFinished != null) {
                     onFinished.run();
                 }
-                currentPlayer.dispose();
+                player.dispose();
+                activePlayers.remove(player);
             });
-            currentPlayer.play();
+            player.play();
+            currentPlayer = player;
         } else if (onFinished != null) {
             // If audio not found, still call callback
             onFinished.run();
         }
     }
     
-    public void playCountdown() {
-        playAudio("countdown");
+    /**
+     * AT START: Play countdown → matchstart, WAIT for both to finish
+     */
+    public void playStartSequence(Runnable onFinished) {
+        // Play countdown first, then matchstart
+        playAudio("countdown", () -> {
+            playAudio("matchstart", onFinished);
+        });
     }
     
-    public void playStartMatch(Runnable onFinished) {
-
-        playAudio("countdown", onFinished);
-        playAudio("startmatch");
-    }
-    
-    public void playTransition(Runnable onFinished) {
-        playAudio("transition", onFinished);
-    }
-    
+    /**
+     * AT 0:30 (endauto): Play endauto, WAIT for sound to finish
+     */
     public void playEndAuto(Runnable onFinished) {
         playAudio("endauto", onFinished);
     }
     
-    public void playEndMatch(Runnable onFinished) {
-        playAudio("endmatch", onFinished);
+    /**
+     * TRANSITION: Play transition, DO NOT WAIT (no callback)
+     */
+    public void playTransition() {
+        playAudio("transition", null);
     }
     
+    /**
+     * WHEN teleop has 0:20 remaining: Play endgame, DO NOT WAIT
+     */
     public void playEndgame() {
-        playAudio("endgamestart");
+        playAudio("endgame", null);
+    }
+    
+    /**
+     * AT END_MATCH: Play matchend, WAIT for it to finish
+     */
+    public void playMatchEnd(Runnable onFinished) {
+        playAudio("matchend", onFinished);
     }
     
     public void playResults() {
@@ -97,7 +105,7 @@ public class AudioService {
         new Thread(() -> {
             try {
                 Thread.sleep(2000);
-                playAudio("results");
+                playAudio("results", null);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -105,8 +113,10 @@ public class AudioService {
     }
     
     public void stopAll() {
-        if (currentPlayer != null) {
-            currentPlayer.stop();
+        for (MediaPlayer player : activePlayers) {
+            player.stop();
+            player.dispose();
         }
+        activePlayers.clear();
     }
 }
