@@ -9,12 +9,12 @@ import java.util.Map;
  */
 public class EmojiConfig {
     // Icon emojis for scoring elements
-    public static final String CLASSIFIED_ICON = "📦";
-    public static final String OVERFLOW_ICON = "💧";
-    public static final String LEAVE_ICON = "🚀";
+    public static final String CLASSIFIED_ICON = "🟢";
+    public static final String OVERFLOW_ICON = "➕";
+    public static final String LEAVE_ICON = "🚗";
     public static final String BASE_ICON = "🏠";
-    public static final String PATTERN_ICON = "🎨";
-    public static final String FOUL_ICON = "⚠️";
+    public static final String PATTERN_ICON = "✔";
+    public static final String FOUL_ICON = "⚠";
     
     // Additional UI emojis
     public static final String TROPHY_ICON = "🏆";
