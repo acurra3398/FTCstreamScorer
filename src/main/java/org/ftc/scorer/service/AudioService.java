@@ -17,7 +17,10 @@ public class AudioService {
         // Preload all audio files
         loadAudio("countdown", "/audio/countdown.wav");
         loadAudio("endauto", "/audio/endauto.wav");
-        loadAudio("endmatch", "/audio/endmatch.wav");
+        loadAudio("transition", "/audio/transition.mp3");
+        loadAudio("endgamestart", "/audio/endgame_start.mp3");
+        loadAudio("endmatch", "/audio/endmatch.mp3");
+        loadAudio("startmatch", "/audio/startmatch.mp3");
         loadAudio("charge", "/audio/charge.wav");
         loadAudio("results", "/audio/results.wav");
     }
@@ -67,28 +70,26 @@ public class AudioService {
         playAudio("countdown");
     }
     
-    public void playCountdown(Runnable onFinished) {
+    public void playStartMatch(Runnable onFinished) {
+
         playAudio("countdown", onFinished);
+        playAudio("startmatch");
     }
     
-    public void playEndAuto() {
-        playAudio("endauto");
+    public void playTransition(Runnable onFinished) {
+        playAudio("transition", onFinished);
     }
     
     public void playEndAuto(Runnable onFinished) {
         playAudio("endauto", onFinished);
     }
     
-    public void playEndMatch() {
-        playAudio("endmatch");
-    }
-    
     public void playEndMatch(Runnable onFinished) {
         playAudio("endmatch", onFinished);
     }
     
-    public void playCharge() {
-        playAudio("charge");
+    public void playEndgame() {
+        playAudio("endgamestart");
     }
     
     public void playResults() {

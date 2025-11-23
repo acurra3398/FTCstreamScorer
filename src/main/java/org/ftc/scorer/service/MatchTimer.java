@@ -56,7 +56,7 @@ public class MatchTimer {
         inCountdown = true;
         
         // Play countdown at start
-        audioService.playCountdown();
+        audioService.playStartMatch();
         
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> tick()));
         timeline.setCycleCount(Timeline.INDEFINITE);
@@ -103,7 +103,7 @@ public class MatchTimer {
                 countdownDisplay.set("");
                 
                 // Play endauto sound and transition when it finishes
-                audioService.playEndAuto(() -> {
+                audioService.playTransition(() -> {
                     match.setState(Match.MatchState.TRANSITION);
                     currentPhase.set("TRANSITION");
                     secondsRemaining.set(TRANSITION_DURATION);

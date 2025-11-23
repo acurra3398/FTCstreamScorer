@@ -17,6 +17,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.ftc.scorer.model.Match;
 import org.ftc.scorer.service.MatchTimer;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Stream output window with webcam feed and scoring overlay
@@ -200,11 +202,13 @@ public class StreamOutputWindow {
         Label redLabel = new Label("RED");
         redLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         redLabel.setTextFill(redColor);
-        
+
         redTeamLabel = new Label("----");
         redTeamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         redTeamLabel.setTextFill(Color.BLACK);
-        
+// ADD:
+        redTeamLabel.setWrapText(true);
+
         teamBox.getChildren().addAll(redLabel, redTeamLabel);
         
         // Fouls (opponent's fouls give us points)
@@ -281,10 +285,12 @@ public class StreamOutputWindow {
         Label blueLabel = new Label("BLUE");
         blueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         blueLabel.setTextFill(blueColor);
-        
+
         blueTeamLabel = new Label("----");
         blueTeamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         blueTeamLabel.setTextFill(Color.BLACK);
+// ADD:
+        blueTeamLabel.setWrapText(true);
         
         teamBox.getChildren().addAll(blueLabel, blueTeamLabel);
         
@@ -518,7 +524,16 @@ public class StreamOutputWindow {
         // Update detailed breakdown
         updateDetailedBreakdown();
     }
-    
+    private String formatTeamsForStack(String display) {
+        if (display == null || display.isBlank()) {
+            return "----";
+        }
+        // Split on '+', stack each trimmed part on its own line
+        return Arrays.stream(display.split("\\+"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.joining("\n"));
+    }
     private void updateDetailedBreakdown() {
         // Red Alliance breakdown
         int redClassified = match.getRedScore().getAutoClassified() + match.getRedScore().getTeleopClassified();
@@ -545,9 +560,10 @@ public class StreamOutputWindow {
         if (redLeaveLabel != null) redLeaveLabel.setText(String.valueOf(redLeavePts));
         if (redBaseLabel != null) redBaseLabel.setText(String.valueOf(redBasePts));
         if (redFoulLabel != null) redFoulLabel.setText(String.valueOf(redFoulPts));
-        
-        String redTeam = match.getRedTeamsDisplay();
-        if (redTeamLabel != null) redTeamLabel.setText(redTeam);
+
+        if (redTeamLabel != null) {
+            redTeamLabel.setText(formatTeamsForStack(match.getRedTeamsDisplay()));
+        }
         
         // Blue Alliance breakdown
         int blueClassified = match.getBlueScore().getAutoClassified() + match.getBlueScore().getTeleopClassified();
@@ -574,9 +590,10 @@ public class StreamOutputWindow {
         if (blueLeaveLabel != null) blueLeaveLabel.setText(String.valueOf(blueLeavePts));
         if (blueBaseLabel != null) blueBaseLabel.setText(String.valueOf(blueBasePts));
         if (blueFoulLabel != null) blueFoulLabel.setText(String.valueOf(blueFoulPts));
-        
-        String blueTeam = match.getBlueTeamsDisplay();
-        if (blueTeamLabel != null) blueTeamLabel.setText(blueTeam);
+
+        if (blueTeamLabel != null) {
+            blueTeamLabel.setText(formatTeamsForStack(match.getBlueTeamsDisplay()));
+        }
     }
     
     public void updateWebcamFrame(Image frame) {
