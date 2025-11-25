@@ -1,0 +1,146 @@
+# GitHub Actions Workflow Example
+# Save this file as .github/workflows/build-installers.yml to automatically
+# build installers for all platforms when you push to GitHub
+
+name: Build Installers
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+      
+      - name: Create runtime image
+        run: |
+          jlink --module-path "$env:JAVA_HOME/jmods" `
+            --add-modules java.base,java.desktop,java.logging,java.sql,java.naming,java.management,jdk.unsupported `
+            --output target/runtime-image `
+            --strip-debug --no-header-files --no-man-pages --compress=2
+      
+      - name: Build Windows installer
+        run: |
+          mkdir -p target/installer
+          jpackage --type msi --input target --name "FTCStreamScorer" `
+            --main-jar stream-scorer-1.0.0.jar --main-class org.ftc.scorer.Launcher `
+            --runtime-image target/runtime-image --dest target/installer `
+            --app-version "1.0.0" --vendor "Hercules Robotics" `
+            --win-menu --win-shortcut
+      
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: target/installer/*.msi
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+      
+      - name: Create runtime image
+        run: |
+          $JAVA_HOME/bin/jlink --module-path "$JAVA_HOME/jmods" \
+            --add-modules java.base,java.desktop,java.logging,java.sql,java.naming,java.management,jdk.unsupported \
+            --output target/runtime-image \
+            --strip-debug --no-header-files --no-man-pages --compress=2
+      
+      - name: Build Linux installer
+        run: |
+          mkdir -p target/installer
+          $JAVA_HOME/bin/jpackage --type deb --input target --name "FTCStreamScorer" \
+            --main-jar stream-scorer-1.0.0.jar --main-class org.ftc.scorer.Launcher \
+            --runtime-image target/runtime-image --dest target/installer \
+            --app-version "1.0.0" --vendor "Hercules Robotics" \
+            --linux-shortcut
+      
+      - name: Upload Linux installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: target/installer/*.deb
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+      
+      - name: Create runtime image
+        run: |
+          $JAVA_HOME/bin/jlink --module-path "$JAVA_HOME/jmods" \
+            --add-modules java.base,java.desktop,java.logging,java.sql,java.naming,java.management,jdk.unsupported \
+            --output target/runtime-image \
+            --strip-debug --no-header-files --no-man-pages --compress=2
+      
+      - name: Build macOS installer
+        run: |
+          mkdir -p target/installer
+          $JAVA_HOME/bin/jpackage --type dmg --input target --name "FTCStreamScorer" \
+            --main-jar stream-scorer-1.0.0.jar --main-class org.ftc.scorer.Launcher \
+            --runtime-image target/runtime-image --dest target/installer \
+            --app-version "1.0.0" --vendor "Hercules Robotics" \
+            --mac-package-name "FTC Stream Scorer"
+      
+      - name: Upload macOS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: target/installer/*.dmg
+
+  # Optional: Create a release with all installers
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: installers
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            installers/windows-installer/*.msi
+            installers/linux-installer/*.deb
+            installers/macos-installer/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
