@@ -55,6 +55,9 @@ public class ControlWindow {
     private CheckBox soloModeCheckBox;
     private Button countdownButton;
     
+    // Scroll speed multiplier constant
+    private static final double SCROLL_SPEED_MULTIPLIER = 3.0;
+    
     public ControlWindow(Match match, MatchTimer matchTimer, WebcamService webcamService, StreamOutputWindow streamWindow, org.ftc.scorer.service.AudioService audioService) {
         this.match = match;
         this.matchTimer = matchTimer;
@@ -83,11 +86,20 @@ public class ControlWindow {
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        // Increase scroll speed
+        scrollPane.setVvalue(0);
+        centerSection.setOnScroll(scrollEvent -> {
+            double deltaY = scrollEvent.getDeltaY() * SCROLL_SPEED_MULTIPLIER;
+            scrollPane.setVvalue(scrollPane.getVvalue() - deltaY / centerSection.getBoundsInLocal().getHeight());
+        });
         root.setCenter(scrollPane);
         
-        Scene scene = new Scene(root, 1400, 900);
+        Scene scene = new Scene(root, 1200, 800);
         stage.setScene(scene);
         stage.setTitle("FTC DECODE Scorer - Control Panel");
+        
+        // Set up keyboard shortcuts
+        setupKeyboardShortcuts(scene);
         
         stage.setOnCloseRequest(e -> {
             webcamService.stop();
@@ -289,6 +301,11 @@ public class ControlWindow {
         showStreamButton.setStyle("-fx-font-size: 13; -fx-padding: 8 20; -fx-background-radius: 5;");
         showStreamButton.setOnAction(e -> streamWindow.show());
         
+        Button keyboardShortcutsButton = new Button("⌨ Shortcuts");
+        keyboardShortcutsButton.setStyle("-fx-font-size: 13; -fx-padding: 8 20; -fx-background-radius: 5; " +
+                                        "-fx-background-color: #607D8B; -fx-text-fill: white;");
+        keyboardShortcutsButton.setOnAction(e -> showKeyboardShortcuts());
+        
         showBreakdownButton = new Button("SHOW FINAL RESULTS");
         showBreakdownButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white; -fx-font-weight: bold; " +
                                      "-fx-font-size: 16; -fx-padding: 12 25; -fx-background-radius: 5;");
@@ -299,7 +316,7 @@ public class ControlWindow {
             match.setState(Match.MatchState.FINISHED);
         });
         
-        controlButtonsRow.getChildren().addAll(pauseButton, resetButton, showStreamButton, showBreakdownButton);
+        controlButtonsRow.getChildren().addAll(pauseButton, resetButton, showStreamButton, keyboardShortcutsButton, showBreakdownButton);
         
         // Add separator
         Separator separator1 = new Separator();
@@ -927,5 +944,93 @@ public class ControlWindow {
     
     public void hide() {
         stage.hide();
+    }
+    
+    /**
+     * Set up keyboard shortcuts for quick scoring
+     */
+    private void setupKeyboardShortcuts(Scene scene) {
+        scene.setOnKeyPressed(event -> {
+            switch (event.getCode()) {
+                case Q: // Add 3 classified artifacts to red teleop
+                    incrementSpinner(redTeleopClassified, 3);
+                    event.consume();
+                    break;
+                    
+                case E: // Add 3 classified artifacts to blue teleop
+                    incrementSpinner(blueTeleopClassified, 3);
+                    event.consume();
+                    break;
+                    
+                case A: // Add 1 classified artifact to red teleop
+                    incrementSpinner(redTeleopClassified, 1);
+                    event.consume();
+                    break;
+                    
+                case D: // Add 1 classified artifact to blue teleop
+                    incrementSpinner(blueTeleopClassified, 1);
+                    event.consume();
+                    break;
+                    
+                case W: // Add 1 overflow to red teleop
+                    incrementSpinner(redTeleopOverflow, 1);
+                    event.consume();
+                    break;
+                    
+                case S: // Add 1 overflow to blue teleop
+                    incrementSpinner(blueTeleopOverflow, 1);
+                    event.consume();
+                    break;
+                    
+                case Z: // Add 1 minor foul to red
+                    incrementSpinner(redMinorFouls, 1);
+                    event.consume();
+                    break;
+                    
+                case C: // Add 1 minor foul to blue
+                    incrementSpinner(blueMinorFouls, 1);
+                    event.consume();
+                    break;
+                    
+                default:
+                    // Do nothing for other keys
+                    break;
+            }
+        });
+    }
+    
+    /**
+     * Helper method to increment a spinner value
+     */
+    private void incrementSpinner(Spinner<Integer> spinner, int increment) {
+        int currentValue = spinner.getValue();
+        spinner.getValueFactory().setValue(currentValue + increment);
+    }
+    
+    /**
+     * Show keyboard shortcuts dialog
+     */
+    private void showKeyboardShortcuts() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Keyboard Shortcuts");
+        alert.setHeaderText("Quick Scoring Shortcuts");
+        
+        String shortcuts = 
+            "Use these keyboard shortcuts for quick scoring:\n\n" +
+            "RED ALLIANCE:\n" +
+            "  Q - Add 3 classified artifacts\n" +
+            "  A - Add 1 classified artifact\n" +
+            "  W - Add 1 overflow\n" +
+            "  Z - Add 1 minor foul\n\n" +
+            "BLUE ALLIANCE:\n" +
+            "  E - Add 3 classified artifacts\n" +
+            "  D - Add 1 classified artifact\n" +
+            "  S - Add 1 overflow\n" +
+            "  C - Add 1 minor foul\n\n" +
+            "Note: Shortcuts add to teleop scoring for classified/overflow artifacts.";
+        
+        alert.setContentText(shortcuts);
+        alert.getDialogPane().setPrefSize(500, 450);
+        alert.showAndWait();
     }
 }
