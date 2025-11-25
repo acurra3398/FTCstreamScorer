@@ -1,85 +1,126 @@
 # FTC Stream Scorer
 
-A local-only scoring system for FIRST Tech Challenge DECODE (2025-2026 season) matches with dual-window output and webcam integration.
+**The easy-to-use scoring display for your FTC DECODE (2025-2026) matches and live streams!**
 
-## Features
+Perfect for teams streaming scrimmages, practice matches, or unofficial events.
 
-- **Dual-Window System**
-  - Control Panel: Easy-to-use scoring interface for single-person operation
-  - Stream Output: OBS-compatible display with webcam feed and scoring overlay
-  
-- **Local Only** 
-  - No login required
-  - No cloud/API syncing
-  - All data stored locally
-  
-- **DECODE Game Support**
-  - Full DECODE 2025-2026 season scoring rules
-  - Autonomous and TeleOp scoring
-  - Robot positioning (Base Low/High, Gate)
-  - Artifact classification (Green, Purple, White)
-  - Penalty tracking
-  
-- **Match Timing**
-  - Authentic FTC match timing (30s Auto, 120s TeleOp)
-  - Original FTC sound effects (countdown, end auto, end match, etc.)
-  - Automatic phase transitions
-  
-- **Webcam Integration**
-  - Live webcam capture
-  - Scoring overlay on video feed
-  - Perfect for streaming to OBS/streaming software
+---
 
-## Requirements
+## 📥 Download & Install
 
-- Java 11 or higher
-- Webcam (optional but recommended)
-- Maven (for building from source)
+### Windows (Recommended)
+1. **Download** the latest installer from the [Releases page](../../releases)
+2. **Run** the `.msi` installer
+3. **Launch** "FTC Stream Scorer" from your Start Menu
 
-## Quick Start
+### macOS
+1. **Download** the `.dmg` file from the [Releases page](../../releases)
+2. **Open** the file and drag the app to your Applications folder
+3. **Launch** from your Applications
 
-### Running the Pre-built JAR
+### Linux
+1. **Download** the `.deb` file from the [Releases page](../../releases)
+2. **Install** with: `sudo dpkg -i FTCStreamScorer*.deb`
+3. **Launch** from your applications menu
 
-```bash
-java -jar target/stream-scorer-1.0.0.jar
-```
+### Alternative: Run the JAR file (requires Java)
+If installers aren't available for your platform, you can run the JAR file directly:
+1. Install [Java 11 or higher](https://adoptium.net/)
+2. Download `stream-scorer-1.0.0.jar` from Releases
+3. Double-click the JAR file, or run: `java -jar stream-scorer-1.0.0.jar`
+
+---
+
+## 🎮 How to Use
+
+### Getting Started
+1. **Launch the app** - Two windows will open:
+   - **Control Panel**: Where you control everything
+   - **Stream Output**: The display for your stream/audience
+
+2. **Select your webcam** (optional) from the dropdown menu
+
+3. **Click "Start Match"** when you're ready to begin
+
+### Scoring a Match
+- Use the **Red Alliance** and **Blue Alliance** sections to track scores
+- Adjust the counters for artifacts, penalties, and positions
+- **Scores update automatically** on the Stream Output display
+
+### Setting Up for Streaming (OBS)
+1. In OBS, add a **Window Capture** or **Display Capture** source
+2. Select the "Stream Output" window
+3. Position and resize as needed
+4. The overlay shows match number, timer, phase, and live scores
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 📺 **Dual-Window Design** | Separate control panel and stream display |
+| 🎥 **Webcam Integration** | Show your field camera with scoring overlay |
+| ⏱️ **Authentic Timing** | Official FTC match timing (30s Auto, 120s TeleOp) |
+| 🔊 **Official Sounds** | Real FTC countdown and match sounds |
+| 🏆 **DECODE Scoring** | Full 2025-2026 season rules built-in |
+| 💾 **Works Offline** | No internet or login required |
+
+---
+
+## ❓ Troubleshooting
+
+### "The app won't start"
+- Make sure you have Java 11+ installed (for JAR version)
+- Try running from command line to see error messages: `java -jar stream-scorer-1.0.0.jar`
+
+### "My webcam isn't showing"
+- Select a different webcam from the dropdown
+- Make sure no other application is using the webcam
+- Try unplugging and reconnecting the webcam
+
+### "The scoring seems wrong"
+- The app uses official DECODE 2025-2026 scoring rules
+- Check the [DECODE Game Manual](https://firstinspires.org) for rule clarifications
+
+---
+
+## 🛠️ For Developers
+
+<details>
+<summary>Click to expand developer information</summary>
 
 ### Building from Source
 
+**Requirements:**
+- JDK 17+
+- Maven 3.6+
+
+**Build and run:**
 ```bash
 mvn clean package
 java -jar target/stream-scorer-1.0.0.jar
 ```
 
-## Usage
+### Creating Installers
 
-1. **Start the Application**
-   - The Control Panel window will open automatically
-   - The Stream Output window will also open (can be repositioned for OBS capture)
+Platform-specific installer scripts are in the `scripts/` folder:
 
-2. **Select Webcam**
-   - Choose your webcam from the dropdown in the Control Panel
-   - The video feed will appear in the Stream Output window
+| Script | Description |
+|--------|-------------|
+| `build-windows-installer.bat` | Creates Windows .msi installer |
+| `build-linux-installer.bat` | Creates Linux .deb installer (via WSL) |
+| `build-macos-installer.sh` | Creates macOS .dmg installer (Mac only) |
+| `build-all-installers.bat` | Menu to build all available installers |
 
-3. **Configure Match**
-   - Enter match number
-   - Click "Start Match" to begin timing
+**Requirements for building installers:**
+- JDK 14+ (for jpackage)
+- WSL with Ubuntu (for Linux builds on Windows)
+- A Mac computer (for macOS builds)
 
-4. **Score the Match**
-   - Use the Red Alliance and Blue Alliance sections to track scores
-   - Adjust spinners for artifacts, penalties, etc.
-   - Select robot positions from dropdowns
-   - Scores update in real-time on the Stream Output window
+See `scripts/github-actions-example.yml` for automated CI/CD builds.
 
-5. **Streaming**
-   - Position the Stream Output window for OBS capture
-   - Use OBS Window Capture or Screen Capture to add to your stream
-   - The overlay shows:
-     - Match number and timer
-     - Current phase (AUTO/TELEOP/ENDGAME/FINISHED)
-     - Live scores for both alliances
-
-## Project Structure
+### Project Structure
 
 ```
 src/main/java/org/ftc/scorer/
@@ -87,54 +128,20 @@ src/main/java/org/ftc/scorer/
 ├── service/         # Services (MatchTimer, AudioService)
 ├── ui/              # UI Windows (ControlWindow, StreamOutputWindow)
 ├── webcam/          # Webcam capture service
-├── ScorerApplication.java  # Main JavaFX application
-└── Launcher.java    # Entry point
-
-src/main/resources/
-├── audio/           # Sound effects from original FTC system
-└── images/          # DECODE logos and graphics
+├── ScorerApplication.java
+└── Launcher.java
 ```
 
-## Building Installers
+</details>
 
-### Method 1: Using the Build Scripts (Recommended)
+---
 
-The project includes build scripts that create platform-specific installers without code signing:
+## 📄 License
 
-**Linux/macOS:**
-```bash
-./build-installer.sh
-```
+Open source for the FIRST Tech Challenge community.
 
-**Windows:**
-```batch
-build-installer.bat
-```
+## 🙏 Credits
 
-Requirements:
-- JDK 14+ (for jpackage support)
-- Maven
-
-The installer will be created in `target/installer/`
-
-### Method 2: Simple JAR Distribution
-
-If you don't need a native installer, you can simply distribute the JAR file:
-
-1. Build: `mvn clean package`
-2. Distribute: `target/stream-scorer-1.0.0.jar`
-3. Run: `java -jar stream-scorer-1.0.0.jar`
-
-Or use the provided launcher scripts:
-- **Linux/macOS:** `./run.sh`
-- **Windows:** `run.bat`
-
-## License
-
-This project is open source and available for use by the FIRST Tech Challenge community.
-
-## Credits
-
-- Sound effects and timing from official FTC Live Event Management System
-- DECODE season graphics from FIRST Inspires
-- Built with JavaFX, Maven, and webcam-capture library
+- Sound effects from official FTC Live Event Management System
+- DECODE graphics from FIRST Inspires
+- Built by [Hercules Robotics](https://herculesrobotics.engineer)
