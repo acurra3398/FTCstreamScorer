@@ -65,6 +65,16 @@ CREATE TABLE IF NOT EXISTS events (
     blue_major_fouls INTEGER DEFAULT 0,
     blue_minor_fouls INTEGER DEFAULT 0,
     
+    -- Score submission flags (referee tablets)
+    red_scores_submitted BOOLEAN DEFAULT FALSE,
+    blue_scores_submitted BOOLEAN DEFAULT FALSE,
+    
+    -- Timer sync timestamp for precise synchronization
+    timer_last_sync TIMESTAMPTZ,
+    
+    -- Pre-match countdown number (5, 4, 3, 2, 1)
+    countdown_number INTEGER,
+    
     -- Timestamps
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -895,6 +895,38 @@ function HostPageContent() {
             )}
           </div>
           
+          {/* Referee Score Submission Status - show when match is finished or under review */}
+          {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+              <h4 className="text-center font-bold text-lg mb-3">📋 Referee Submissions</h4>
+              <div className="flex justify-center gap-8">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  eventData?.red_scores_submitted 
+                    ? 'bg-green-100 border-2 border-green-500 text-green-800' 
+                    : 'bg-red-100 border-2 border-red-300 text-red-700'
+                }`}>
+                  <span className="text-lg">{eventData?.red_scores_submitted ? '✅' : '⏳'}</span>
+                  <span className="font-bold">RED:</span>
+                  <span>{eventData?.red_scores_submitted ? 'Submitted' : 'Pending'}</span>
+                </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  eventData?.blue_scores_submitted 
+                    ? 'bg-green-100 border-2 border-green-500 text-green-800' 
+                    : 'bg-blue-100 border-2 border-blue-300 text-blue-700'
+                }`}>
+                  <span className="text-lg">{eventData?.blue_scores_submitted ? '✅' : '⏳'}</span>
+                  <span className="font-bold">BLUE:</span>
+                  <span>{eventData?.blue_scores_submitted ? 'Submitted' : 'Pending'}</span>
+                </div>
+              </div>
+              {eventData?.red_scores_submitted && eventData?.blue_scores_submitted && (
+                <div className="mt-3 text-center text-green-600 font-bold animate-pulse">
+                  ✅ Both referees have submitted! Ready to release final scores.
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Release Final Scores button - only show when match is finished or under review */}
           {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
             <div className="mt-4 flex justify-center">

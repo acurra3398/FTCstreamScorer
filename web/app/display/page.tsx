@@ -726,6 +726,15 @@ function DisplayPageContent() {
                     >
                       Event: {eventName}
                     </div>
+                    <div 
+                      className="text-yellow-500 mt-6 p-4 bg-yellow-900/30 rounded-lg max-w-lg"
+                      style={{ 
+                        fontSize: '14px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      📹 <strong>Camera Setup:</strong> Set a YouTube/Twitch embed URL in host controls, or use this page as an OBS Browser Source and add your camera as a separate Video Capture source.
+                    </div>
                   </>
                 ) : (
                   <>
@@ -771,7 +780,7 @@ function DisplayPageContent() {
                         fontFamily: 'Arial, sans-serif',
                       }}
                     >
-                      💡 Tip: Use this display as an OBS Browser Source overlay, or set a livestream URL in host controls
+                      💡 No stream URL configured. Set one in host controls or use this as an OBS overlay.
                     </div>
                   </>
                 )}
@@ -849,9 +858,15 @@ function DisplayPageContent() {
         </div>
       )}
       
-      {/* Final Results Display (after video) */}
+      {/* Final Results Display (after video) - positioned above ScoreBar */}
       {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
+        <div 
+          className="absolute left-0 right-0 top-0 z-30 flex flex-col items-center justify-center overflow-auto" 
+          style={{ 
+            backgroundColor: COLORS.BLACK,
+            height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%`,
+          }}
+        >
           <div 
             className="text-white font-bold mb-4"
             style={{ 
