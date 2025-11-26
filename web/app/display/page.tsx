@@ -438,7 +438,9 @@ function DisplayPageContent() {
           backgroundColor: COLORS.BLACK,
         }}
       >
-        {/* Hidden audio element for announcer audio streaming */}
+        {/* Hidden audio element for announcer audio streaming (camera mode) 
+            Note: This element only renders in camera mode. For full display mode, 
+            a similar element is rendered below. Only one mode is active at a time. */}
         <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
         
         {/* Countdown overlay */}
@@ -694,24 +696,85 @@ function DisplayPageContent() {
                 </div>
               </div>
             ) : (
-              <div className="text-gray-500 text-center">
-                <div 
-                  className="font-bold mb-2"
-                  style={{ 
-                    fontSize: '48px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
-                  📹 Waiting for Match
-                </div>
-                <div 
-                  style={{ 
-                    fontSize: '24px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
-                  Display will show match when host starts
-                </div>
+              <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
+                {eventData?.match_state === 'NOT_STARTED' ? (
+                  <>
+                    <div 
+                      className="font-bold mb-4"
+                      style={{ 
+                        fontSize: '48px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      ⏳ Match Ready
+                    </div>
+                    <div 
+                      className="text-gray-500"
+                      style={{ 
+                        fontSize: '24px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      Waiting for host to start the match
+                    </div>
+                    <div 
+                      className="text-gray-600 mt-4"
+                      style={{ 
+                        fontSize: '16px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      Event: {eventName}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div 
+                      className="font-bold mb-4 text-green-400"
+                      style={{ 
+                        fontSize: '36px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      🟢 Match In Progress
+                    </div>
+                    <div 
+                      className="text-white font-bold"
+                      style={{ 
+                        fontSize: '72px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      {timerDisplay}
+                    </div>
+                    <div 
+                      className={`font-bold mt-2 ${
+                        eventData?.match_state === 'AUTONOMOUS' ? 'text-green-400' :
+                        eventData?.match_state === 'TRANSITION' ? 'text-yellow-400' :
+                        eventData?.match_state === 'TELEOP' ? 'text-blue-400' :
+                        eventData?.match_state === 'END_GAME' ? 'text-orange-400' :
+                        eventData?.match_state === 'FINISHED' ? 'text-red-400' :
+                        eventData?.match_state === 'UNDER_REVIEW' ? 'text-yellow-400' :
+                        'text-gray-400'
+                      }`}
+                      style={{ 
+                        fontSize: '28px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      {eventData?.match_state?.replace(/_/g, ' ')}
+                    </div>
+                    <div 
+                      className="text-gray-500 mt-6"
+                      style={{ 
+                        fontSize: '14px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      💡 Tip: Use this display as an OBS Browser Source overlay, or set a livestream URL in host controls
+                    </div>
+                  </>
+                )}
               </div>
             )
           )}
@@ -748,7 +811,9 @@ function DisplayPageContent() {
       {/* Hidden audio element for results sound */}
       <audio ref={audioRef} preload="auto" />
       
-      {/* Hidden audio element for announcer audio streaming (full display mode) */}
+      {/* Hidden audio element for announcer audio streaming (full display mode)
+          Note: This element only renders in full display mode. For camera mode,
+          a similar element is rendered above. Only one mode is active at a time. */}
       <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
       
       {/* Countdown overlay */}

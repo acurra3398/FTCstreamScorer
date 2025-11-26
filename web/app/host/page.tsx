@@ -271,8 +271,10 @@ function HostPageContent() {
   useEffect(() => {
     async function loadCameras() {
       try {
-        // Request permission first
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        // Request permission first, then stop the stream to free resources
+        const permissionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        permissionStream.getTracks().forEach(track => track.stop());
+        
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cameras = devices.filter(device => device.kind === 'videoinput');
         setAvailableCameras(cameras);
@@ -290,8 +292,10 @@ function HostPageContent() {
   useEffect(() => {
     async function loadMicrophones() {
       try {
-        // Request permission first
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Request permission first, then stop the stream to free resources
+        const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        permissionStream.getTracks().forEach(track => track.stop());
+        
         const devices = await navigator.mediaDevices.enumerateDevices();
         const microphones = devices.filter(device => device.kind === 'audioinput');
         setAvailableMicrophones(microphones);
@@ -349,11 +353,14 @@ function HostPageContent() {
         });
         
         // Handle ICE candidates
+        // Note: ICE candidates are sent immediately as they're gathered.
+        // In a production system, you might want to batch these or use 
+        // Supabase Realtime for more efficient signaling.
         const iceCandidates: RTCIceCandidate[] = [];
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             iceCandidates.push(event.candidate);
-            // Update candidates in database
+            // Update candidates in database (accumulated list)
             await hostActionAPI(eventName, password, 'setAudioState', { 
               audioIceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON())),
             });
