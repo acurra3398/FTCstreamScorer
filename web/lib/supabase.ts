@@ -215,18 +215,42 @@ export function extractBlueScore(event: EventData): DecodeScore {
 let supabase: SupabaseClient | null = null;
 
 /**
+ * Safely decode a base64url string (handles both base64 and base64url encoding).
+ * Returns null if decoding fails.
+ */
+function safeBase64Decode(str: string): string | null {
+  try {
+    // Handle base64url encoding (replace URL-safe characters)
+    const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    // Add padding if needed
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    return atob(padded);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Helper function to detect if a key looks like a service role key (secret key).
  * Supabase JWTs contain a "role" claim - service_role for secret keys, anon for public keys.
  * Service role keys typically have "role":"service_role" in the payload.
  */
 function isServiceRoleKey(key: string): boolean {
   try {
+    // Validate that it looks like a JWT (should start with 'eyJ' which is base64 for '{"')
+    if (!key || !key.startsWith('eyJ')) {
+      return false;
+    }
+    
     // Supabase keys are JWTs - the second part (payload) is base64 encoded
     const parts = key.split('.');
     if (parts.length !== 3) return false;
     
-    // Decode the payload (second part)
-    const payload = JSON.parse(atob(parts[1]));
+    // Safely decode the payload (second part)
+    const decoded = safeBase64Decode(parts[1]);
+    if (!decoded) return false;
+    
+    const payload = JSON.parse(decoded);
     
     // Check if it's a service_role key
     return payload.role === 'service_role';

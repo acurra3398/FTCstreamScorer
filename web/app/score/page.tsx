@@ -34,7 +34,7 @@ function ScoringPageContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [errorType, setErrorType] = useState<'connection' | 'configuration' | 'auth'>('connection');
+  const [errorType, setErrorType] = useState<'connection' | 'configuration'>('connection');
   const [lastSync, setLastSync] = useState('');
   
   const [redScore, setRedScore] = useState<DecodeScore>(createDefaultScore());
@@ -209,8 +209,6 @@ function ScoringPageContent() {
       switch (errorType) {
         case 'configuration':
           return '⚠️ Configuration Error';
-        case 'auth':
-          return '🔐 Authentication Error';
         default:
           return '❌ Connection Error';
       }
