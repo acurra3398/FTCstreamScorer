@@ -53,6 +53,12 @@ export const LAYOUT = {
   HORIZONTAL_PADDING_PERCENT: 6,
 };
 
+// Valid match states (shared between client and server)
+export const VALID_MATCH_STATES = ['NOT_STARTED', 'AUTONOMOUS', 'TRANSITION', 'TELEOP', 'END_GAME', 'FINISHED', 'UNDER_REVIEW'] as const;
+
+// Valid motif types (shared between client and server)
+export const VALID_MOTIFS = ['PPG', 'PGP', 'GPP'] as const;
+
 // Motif display names
 export const MOTIF_NAMES: Record<string, string> = {
   PPG: 'PPG (Purple-Purple-Green)',
