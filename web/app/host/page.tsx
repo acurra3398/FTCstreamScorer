@@ -204,6 +204,14 @@ function HostPageContent() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const waitingForSound = useRef(false);
   
+  // Audio streaming state for announcer microphone
+  const [availableMicrophones, setAvailableMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicrophone, setSelectedMicrophone] = useState<string>('');
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<string>('');
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  
   // Show score editing tab
   const [showScoreEdit, setShowScoreEdit] = useState(false);
   
@@ -277,6 +285,98 @@ function HostPageContent() {
     }
     loadCameras();
   }, []);
+  
+  // Load available microphones for announcer audio
+  useEffect(() => {
+    async function loadMicrophones() {
+      try {
+        // Request permission first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const microphones = devices.filter(device => device.kind === 'audioinput');
+        setAvailableMicrophones(microphones);
+        if (microphones.length > 0 && !selectedMicrophone) {
+          setSelectedMicrophone(microphones[0].deviceId);
+        }
+      } catch (err) {
+        console.error('Error loading microphones:', err);
+      }
+    }
+    loadMicrophones();
+  }, []);
+  
+  // Handle audio streaming toggle
+  const handleAudioToggle = async () => {
+    if (audioEnabled) {
+      // Stop audio streaming
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+        setAudioStream(null);
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      setAudioEnabled(false);
+      setAudioStatus('Audio streaming stopped');
+      
+      // Update database to disable audio
+      await hostActionAPI(eventName, password, 'setAudioState', { 
+        audioEnabled: false,
+        audioSdpOffer: '',
+        audioSdpAnswer: '',
+        audioIceCandidates: '[]',
+      });
+    } else {
+      // Start audio streaming
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: selectedMicrophone ? { exact: selectedMicrophone } : undefined }
+        });
+        setAudioStream(stream);
+        setAudioEnabled(true);
+        setAudioStatus('Audio streaming active - Microphone is live!');
+        
+        // Create WebRTC peer connection for audio
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        peerConnectionRef.current = pc;
+        
+        // Add audio track to connection
+        stream.getAudioTracks().forEach(track => {
+          pc.addTrack(track, stream);
+        });
+        
+        // Handle ICE candidates
+        const iceCandidates: RTCIceCandidate[] = [];
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            iceCandidates.push(event.candidate);
+            // Update candidates in database
+            await hostActionAPI(eventName, password, 'setAudioState', { 
+              audioIceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON())),
+            });
+          }
+        };
+        
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        // Store offer in database for display to pick up
+        await hostActionAPI(eventName, password, 'setAudioState', { 
+          audioEnabled: true,
+          audioSdpOffer: JSON.stringify(offer),
+        });
+        
+        setAudioStatus('Audio streaming active - Waiting for display to connect...');
+      } catch (err) {
+        console.error('Error starting audio:', err);
+        setAudioStatus('Failed to start audio: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    }
+  };
 
   // Start/stop camera when selection changes
   useEffect(() => {
@@ -808,7 +908,7 @@ function HostPageContent() {
             <span className="mx-2">→</span>
             <span>TELEOP (2:00)</span>
             <span className="mx-2">→</span>
-            <span>ENDGAME (last 0:20)</span>
+            <span>ENDGAME (last 0:30)</span>
           </div>
         </div>
         
@@ -948,6 +1048,61 @@ function HostPageContent() {
             
             <p className="text-sm text-gray-600 mt-3">
               <strong>For OBS:</strong> Add the Display page (/display?mode=overlay or /display?mode=camera) as a Browser Source. Add your camera separately as a Video Capture source and layer it with the score overlay. No URL needed!
+            </p>
+          </div>
+        </div>
+        
+        {/* Announcer Microphone / Audio Streaming */}
+        <div className="bg-white rounded-lg p-4 shadow">
+          <h3 className="text-lg font-bold mb-3">🎙️ Announcer Audio</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Enable announcer audio to stream your microphone to the display view. The audio will be transmitted to all connected displays in real-time.
+          </p>
+          <div className="space-y-3">
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedMicrophone}
+                onChange={(e) => setSelectedMicrophone(e.target.value)}
+                className="flex-1 p-2 border rounded"
+                disabled={availableMicrophones.length === 0 || audioEnabled}
+              >
+                {availableMicrophones.length === 0 ? (
+                  <option value="">No microphones found</option>
+                ) : (
+                  availableMicrophones.map((mic) => (
+                    <option key={mic.deviceId} value={mic.deviceId}>
+                      {mic.label || `Microphone ${availableMicrophones.indexOf(mic) + 1}`}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                onClick={handleAudioToggle}
+                disabled={availableMicrophones.length === 0}
+                className={`px-4 py-2 rounded font-bold transition-colors ${
+                  audioEnabled 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                } ${availableMicrophones.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {audioEnabled ? '🔇 Stop Audio' : '🎙️ Start Audio'}
+              </button>
+            </div>
+            
+            {/* Audio status indicator */}
+            {audioStatus && (
+              <div className={`p-2 rounded text-sm ${
+                audioEnabled 
+                  ? 'bg-green-100 text-green-800 border border-green-300' 
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {audioEnabled && <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>}
+                {audioStatus}
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500">
+              <strong>Note:</strong> Audio streaming uses WebRTC for low-latency transmission. The display view will automatically receive audio when connected.
             </p>
           </div>
         </div>

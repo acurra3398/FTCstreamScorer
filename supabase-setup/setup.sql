@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS events (
     -- Camera livestream URL (set by host)
     livestream_url TEXT DEFAULT '',
     
+    -- Audio streaming for announcer (WebRTC signaling)
+    audio_enabled BOOLEAN DEFAULT FALSE,
+    audio_ice_candidates TEXT DEFAULT '[]',
+    audio_sdp_offer TEXT DEFAULT '',
+    audio_sdp_answer TEXT DEFAULT '',
+    
     -- Team info
     red_team1 TEXT DEFAULT '',
     red_team2 TEXT DEFAULT '',

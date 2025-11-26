@@ -132,6 +132,14 @@ export async function PATCH(
         // Set the pre-match countdown number (5, 4, 3, 2, 1, or null)
         updateData.countdown_number = data?.countdownNumber ?? null;
         break;
+      
+      case 'setAudioState':
+        // Set audio streaming state for announcer microphone
+        if (data?.audioEnabled !== undefined) updateData.audio_enabled = data.audioEnabled;
+        if (data?.audioSdpOffer !== undefined) updateData.audio_sdp_offer = data.audioSdpOffer;
+        if (data?.audioSdpAnswer !== undefined) updateData.audio_sdp_answer = data.audioSdpAnswer;
+        if (data?.audioIceCandidates !== undefined) updateData.audio_ice_candidates = data.audioIceCandidates;
+        break;
 
       case 'resetScores':
         // Reset all scores to zero and reset timer state
@@ -172,6 +180,10 @@ export async function PATCH(
           timer_paused_at: null,
           timer_last_sync: new Date().toISOString(),
           countdown_number: null,
+          audio_enabled: false,
+          audio_sdp_offer: '',
+          audio_sdp_answer: '',
+          audio_ice_candidates: '[]',
         };
         break;
 
