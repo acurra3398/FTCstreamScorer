@@ -10,6 +10,7 @@ import javafx.stage.Stage;
 import org.ftc.scorer.model.DecodeScore;
 import org.ftc.scorer.model.Match;
 import org.ftc.scorer.service.MatchTimer;
+import org.ftc.scorer.service.SyncServer;
 import org.ftc.scorer.webcam.WebcamService;
 
 import java.util.List;
@@ -25,6 +26,7 @@ public class ControlWindow {
     private final WebcamService webcamService;
     private final StreamOutputWindow streamWindow;
     private final org.ftc.scorer.service.AudioService audioService;
+    private final SyncServer syncServer;
     
     // Team input - alliances have 2 teams each
     private TextField redTeam1Field;
@@ -55,6 +57,10 @@ public class ControlWindow {
     private CheckBox soloModeCheckBox;
     private Button countdownButton;
     
+    // Sync server controls
+    private Button syncServerButton;
+    private Label syncStatusLabel;
+    
     // Scroll speed multiplier constant
     private static final double SCROLL_SPEED_MULTIPLIER = 3.0;
     
@@ -64,10 +70,14 @@ public class ControlWindow {
         this.webcamService = webcamService;
         this.streamWindow = streamWindow;
         this.audioService = audioService;
+        this.syncServer = new SyncServer(match);
         this.stage = new Stage();
         
         initializeUI();
         bindToModel();
+        
+        // Set up sync server callback to update spinners when remote device sends scores
+        syncServer.setOnScoreUpdate(this::refreshControlsFromModel);
     }
     
     private void initializeUI() {
@@ -219,7 +229,19 @@ public class ControlWindow {
             }
         });
         
-        configRow.getChildren().addAll(motifLabel, motifSelector, randomizeMotifButton, webcamLabel, webcamSelector);
+        // Sync server controls
+        syncServerButton = new Button("Start Sync Server");
+        syncServerButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+        syncServerButton.setOnAction(e -> toggleSyncServer());
+        
+        syncStatusLabel = new Label("Server: Off");
+        syncStatusLabel.setStyle("-fx-font-size: 12; -fx-text-fill: #666;");
+        
+        VBox syncBox = new VBox(3);
+        syncBox.setAlignment(Pos.CENTER);
+        syncBox.getChildren().addAll(syncServerButton, syncStatusLabel);
+        
+        configRow.getChildren().addAll(motifLabel, motifSelector, randomizeMotifButton, webcamLabel, webcamSelector, syncBox);
         
         // Match control buttons
         startButton = new Button("Start Match");
@@ -655,6 +677,11 @@ public class ControlWindow {
         // Update score labels in the alliance panels
         // Note: Score labels are embedded in the panels, so we'd need to refactor to update them
         // For now, the StreamOutputWindow will show live scores
+        
+        // Broadcast updated scores to connected sync clients
+        if (syncServer.isRunning()) {
+            syncServer.broadcastScores();
+        }
     }
     
     private void resetAllControls() {
@@ -1076,5 +1103,99 @@ public class ControlWindow {
         alert.setContentText(shortcuts);
         alert.getDialogPane().setPrefSize(500, 450);
         alert.showAndWait();
+    }
+    
+    /**
+     * Toggle the sync server on/off
+     */
+    private void toggleSyncServer() {
+        if (syncServer.isRunning()) {
+            syncServer.stop();
+            syncServerButton.setText("Start Sync Server");
+            syncServerButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+            syncStatusLabel.setText("Server: Off");
+            syncStatusLabel.setStyle("-fx-font-size: 12; -fx-text-fill: #666;");
+        } else {
+            if (syncServer.start()) {
+                syncServerButton.setText("Stop Sync Server");
+                syncServerButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+                String address = syncServer.getServerAddress();
+                syncStatusLabel.setText("Connect: " + address);
+                syncStatusLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #4CAF50; -fx-font-weight: bold;");
+                
+                // Show connection info dialog
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.setTitle("Sync Server Started");
+                info.setHeaderText("Remote devices can now connect");
+                info.setContentText(
+                    "Other devices can connect to score for red or blue alliance.\n\n" +
+                    "CONNECTION ADDRESS:\n" + address + "\n\n" +
+                    "SETUP INSTRUCTIONS:\n" +
+                    "1. On the remote device, open FTC Stream Scorer\n" +
+                    "2. Enter the connection address above\n" +
+                    "3. Select which alliance to score (Red or Blue)\n" +
+                    "4. Scores will sync automatically\n\n" +
+                    "Note: All devices must be on the same network (WiFi)."
+                );
+                info.getDialogPane().setPrefWidth(500);
+                info.showAndWait();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Server Error");
+                alert.setHeaderText("Failed to start sync server");
+                alert.setContentText("The server could not start. Port 5555 may be in use.");
+                alert.showAndWait();
+            }
+        }
+    }
+    
+    /**
+     * Refresh all control values from the model
+     * Called when scores are updated by remote devices
+     */
+    private void refreshControlsFromModel() {
+        // Red Alliance
+        redRobot1Leave.setSelected(match.getRedScore().isRobot1Leave());
+        redRobot2Leave.setSelected(match.getRedScore().isRobot2Leave());
+        redAutoClassified.getValueFactory().setValue(match.getRedScore().getAutoClassified());
+        redAutoOverflow.getValueFactory().setValue(match.getRedScore().getAutoOverflow());
+        redAutoPattern.getValueFactory().setValue(match.getRedScore().getAutoPatternMatches());
+        redTeleopClassified.getValueFactory().setValue(match.getRedScore().getTeleopClassified());
+        redTeleopOverflow.getValueFactory().setValue(match.getRedScore().getTeleopOverflow());
+        redTeleopDepot.getValueFactory().setValue(match.getRedScore().getTeleopDepot());
+        redTeleopPattern.getValueFactory().setValue(match.getRedScore().getTeleopPatternMatches());
+        redRobot1Base.setValue(match.getRedScore().getRobot1Base());
+        redRobot2Base.setValue(match.getRedScore().getRobot2Base());
+        redMajorFouls.getValueFactory().setValue(match.getRedScore().getMajorFouls());
+        redMinorFouls.getValueFactory().setValue(match.getRedScore().getMinorFouls());
+        
+        // Blue Alliance
+        blueRobot1Leave.setSelected(match.getBlueScore().isRobot1Leave());
+        blueRobot2Leave.setSelected(match.getBlueScore().isRobot2Leave());
+        blueAutoClassified.getValueFactory().setValue(match.getBlueScore().getAutoClassified());
+        blueAutoOverflow.getValueFactory().setValue(match.getBlueScore().getAutoOverflow());
+        blueAutoPattern.getValueFactory().setValue(match.getBlueScore().getAutoPatternMatches());
+        blueTeleopClassified.getValueFactory().setValue(match.getBlueScore().getTeleopClassified());
+        blueTeleopOverflow.getValueFactory().setValue(match.getBlueScore().getTeleopOverflow());
+        blueTeleopDepot.getValueFactory().setValue(match.getBlueScore().getTeleopDepot());
+        blueTeleopPattern.getValueFactory().setValue(match.getBlueScore().getTeleopPatternMatches());
+        blueRobot1Base.setValue(match.getBlueScore().getRobot1Base());
+        blueRobot2Base.setValue(match.getBlueScore().getRobot2Base());
+        blueMajorFouls.getValueFactory().setValue(match.getBlueScore().getMajorFouls());
+        blueMinorFouls.getValueFactory().setValue(match.getBlueScore().getMinorFouls());
+        
+        // Broadcast updated scores to all connected clients
+        if (syncServer.isRunning()) {
+            syncServer.broadcastScores();
+        }
+        
+        updateScoreDisplays();
+    }
+    
+    /**
+     * Get the sync server instance
+     */
+    public SyncServer getSyncServer() {
+        return syncServer;
     }
 }

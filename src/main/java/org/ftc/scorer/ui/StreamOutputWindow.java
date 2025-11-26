@@ -10,6 +10,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -17,6 +18,7 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.ftc.scorer.model.Match;
 import org.ftc.scorer.service.MatchTimer;
+import org.ftc.scorer.service.VideoService;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,7 @@ public class StreamOutputWindow {
     private final Stage stage;
     private final Match match;
     private final MatchTimer matchTimer;
+    private final VideoService videoService;
     
     private ImageView webcamView;
     private Label redScoreLabel;
@@ -76,6 +79,7 @@ public class StreamOutputWindow {
     public StreamOutputWindow(Match match, MatchTimer matchTimer) {
         this.match = match;
         this.matchTimer = matchTimer;
+        this.videoService = new VideoService();
         this.stage = new Stage();
         
         initializeUI();
@@ -762,6 +766,7 @@ public class StreamOutputWindow {
     
     /**
      * Show detailed breakdown overlay for final results
+     * First plays a winner video (if available), then shows the breakdown
      */
     public void showBreakdownOverlay() {
         if (showingBreakdown) {
@@ -770,6 +775,53 @@ public class StreamOutputWindow {
         
         showingBreakdown = true;
         
+        int redTotal = match.getRedTotalScore();
+        int blueTotal = match.getBlueTotalScore();
+        boolean redWins = redTotal > blueTotal;
+        boolean isTie = redTotal == blueTotal;
+        
+        // Hide normal UI elements
+        topBar.setVisible(false);
+        scoreBar.setVisible(false);
+        
+        // Try to play appropriate video first (tie video for ties, winner video otherwise)
+        boolean hasVideo = isTie ? videoService.hasTieVideo() : videoService.hasWinnerVideo(redWins);
+        
+        if (hasVideo) {
+            // Create video overlay
+            StackPane videoOverlay = new StackPane();
+            videoOverlay.setStyle("-fx-background-color: black;");
+            
+            MediaView mediaView = videoService.getMediaView();
+            mediaView.fitWidthProperty().bind(root.widthProperty());
+            mediaView.fitHeightProperty().bind(root.heightProperty());
+            videoOverlay.getChildren().add(mediaView);
+            
+            root.getChildren().add(videoOverlay);
+            
+            // Play video, then show breakdown
+            Runnable onVideoFinished = () -> {
+                javafx.application.Platform.runLater(() -> {
+                    root.getChildren().remove(videoOverlay);
+                    showBreakdownContent(redWins, isTie);
+                });
+            };
+            
+            if (isTie) {
+                videoService.playTieVideo(onVideoFinished);
+            } else {
+                videoService.playWinnerVideo(redWins, onVideoFinished);
+            }
+        } else {
+            // No video, show breakdown directly
+            showBreakdownContent(redWins, isTie);
+        }
+    }
+    
+    /**
+     * Actually display the breakdown content (after video if played)
+     */
+    private void showBreakdownContent(boolean redWins, boolean isTie) {
         // Create breakdown overlay
         VBox overlay = new VBox(30);
         overlay.setAlignment(Pos.CENTER);
@@ -791,16 +843,19 @@ public class StreamOutputWindow {
         HBox scoresBox = new HBox(60);
         scoresBox.setAlignment(Pos.CENTER);
         
+        // Create breakdown boxes with winner highlighting
         VBox redBreakdown = createFullBreakdownBox("RED ALLIANCE", match.getRedScore(), 
                                                      match.getBlueScore(), match.getRedTeamNumber(),
-                                                     match.getRedTotalScore(), Color.rgb(211, 47, 47));
+                                                     match.getRedTotalScore(), Color.rgb(211, 47, 47),
+                                                     !isTie && redWins);
         VBox blueBreakdown = createFullBreakdownBox("BLUE ALLIANCE", match.getBlueScore(),
                                                       match.getRedScore(), match.getBlueTeamNumber(),
-                                                      match.getBlueTotalScore(), Color.rgb(25, 118, 210));
+                                                      match.getBlueTotalScore(), Color.rgb(25, 118, 210),
+                                                      !isTie && !redWins);
         
         scoresBox.getChildren().addAll(redBreakdown, blueBreakdown);
         
-        // Winner
+        // Winner announcement
         Label winnerLabel = new Label();
         winnerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         int redTotal = match.getRedTotalScore();
@@ -820,6 +875,10 @@ public class StreamOutputWindow {
         
         breakdownOverlay = overlay;
         root.getChildren().add(overlay);
+        
+        // Show the score bar again at the bottom
+        topBar.setVisible(true);
+        scoreBar.setVisible(true);
     }
     
     /**
@@ -835,17 +894,42 @@ public class StreamOutputWindow {
     
     private VBox createFullBreakdownBox(String title, org.ftc.scorer.model.DecodeScore score,
                                          org.ftc.scorer.model.DecodeScore opponentScore,
-                                         String teamNumber, int totalScore, Color color) {
+                                         String teamNumber, int totalScore, Color color,
+                                         boolean isWinner) {
         VBox box = new VBox(10);
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color: rgba(0, 0, 0, 0.5); -fx-border-color: " + 
-                     toRgbString(color) + "; -fx-border-width: 3; -fx-border-radius: 10; -fx-background-radius: 10;");
+        
+        // Winner gets highlighted border and glow effect
+        String borderStyle;
+        if (isWinner) {
+            borderStyle = "-fx-background-color: rgba(0, 0, 0, 0.5); -fx-border-color: gold; " +
+                         "-fx-border-width: 5; -fx-border-radius: 10; -fx-background-radius: 10; " +
+                         "-fx-effect: dropshadow(gaussian, gold, 20, 0.5, 0, 0);";
+        } else {
+            borderStyle = "-fx-background-color: rgba(0, 0, 0, 0.5); -fx-border-color: " + 
+                         toRgbString(color) + "; -fx-border-width: 3; -fx-border-radius: 10; -fx-background-radius: 10;";
+        }
+        box.setStyle(borderStyle);
         box.setMinWidth(400);
+        
+        // Title with optional WINNER badge
+        HBox titleBox = new HBox(15);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
         
         Label titleLabel = new Label(title);
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         titleLabel.setTextFill(color);
+        
+        titleBox.getChildren().add(titleLabel);
+        
+        if (isWinner) {
+            Label winnerBadge = new Label("★ WINNER ★");
+            winnerBadge.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+            winnerBadge.setTextFill(Color.BLACK);
+            winnerBadge.setStyle("-fx-background-color: gold; -fx-padding: 5 15; -fx-background-radius: 15;");
+            titleBox.getChildren().add(winnerBadge);
+        }
         
         String team = teamNumber.isEmpty() ? "----" : teamNumber;
         Label teamLabel = new Label("Team: " + team);
@@ -913,7 +997,7 @@ public class StreamOutputWindow {
         totalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 32));
         totalLabel.setTextFill(Color.WHITE);
         
-        box.getChildren().addAll(titleLabel, teamLabel, new Separator(),
+        box.getChildren().addAll(titleBox, teamLabel, new Separator(),
                                   autoHeader, autoBox, new Separator(),
                                   teleopHeader, teleopBox, new Separator(),
                                   baseHeader, baseBox, new Separator(),
