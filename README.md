@@ -65,6 +65,55 @@ If installers aren't available for your platform, you can run the JAR file direc
 | 🔊 **Official Sounds** | Real FTC countdown and match sounds |
 | 🏆 **DECODE Scoring** | Full 2025-2026 season rules built-in |
 | 💾 **Works Offline** | No internet or login required |
+| 🎬 **Winner Videos** | Play celebration videos before final results |
+| 📡 **Wireless Sync** | Multiple devices can score together |
+
+---
+
+## 📡 Multi-Device Wireless Scoring
+
+You can have multiple devices scoring different alliances and sync them to a main computer.
+
+### Setting Up the Main Computer (Server)
+
+1. **Start FTC Stream Scorer** on your main computer
+2. **Click "Start Sync Server"** in the control panel
+3. **Note the connection address** shown (e.g., `192.168.1.100:5555`)
+4. The server is now ready to accept connections
+
+### Setting Up Remote Scoring Devices (Clients)
+
+1. **Start FTC Stream Scorer** on the remote device
+2. **Connect to the server** using the IP:port from the main computer
+3. **Select alliance** - choose Red or Blue alliance to score
+4. Start scoring! Changes sync automatically
+
+### Network Requirements
+
+- All devices must be on the **same WiFi network**
+- The main computer's firewall may need to allow port 5555
+- For best results, use a dedicated WiFi network
+
+---
+
+## 🎬 Winner Videos
+
+When you click "Show Final Results", the app can play a celebration video before displaying the final scores.
+
+### Setting Up Winner Videos
+
+1. Create two video files:
+   - `red_winner.mp4` - plays when Red Alliance wins
+   - `blue_winner.mp4` - plays when Blue Alliance wins
+
+2. Place them in: `src/main/resources/videos/`
+
+3. Recommended format:
+   - **Format:** MP4 (H.264 codec)
+   - **Resolution:** 1280x720 or 1920x1080
+   - **Duration:** 5-15 seconds
+
+If videos are not found, the final results will display immediately.
 
 ---
 
@@ -82,6 +131,11 @@ If installers aren't available for your platform, you can run the JAR file direc
 ### "The scoring seems wrong"
 - The app uses official DECODE 2025-2026 scoring rules
 - Check the [DECODE Game Manual](https://firstinspires.org) for rule clarifications
+
+### "Remote devices can't connect"
+- Ensure all devices are on the same WiFi network
+- Check if firewall is blocking port 5555
+- Try disabling firewall temporarily for testing
 
 ---
 
