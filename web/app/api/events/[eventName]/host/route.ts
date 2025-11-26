@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient, hashPasswordServer } from '@/lib/supabase-server';
+import { VALID_MATCH_STATES, VALID_MOTIFS } from '@/lib/constants';
 import type { MatchState, MotifType } from '@/lib/supabase';
 
 // PATCH /api/events/[eventName]/host - Host controls (requires password)
@@ -76,8 +77,7 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        const validStates: MatchState[] = ['NOT_STARTED', 'AUTONOMOUS', 'TRANSITION', 'TELEOP', 'END_GAME', 'FINISHED', 'UNDER_REVIEW'];
-        if (!validStates.includes(data.matchState)) {
+        if (!VALID_MATCH_STATES.includes(data.matchState)) {
           return NextResponse.json(
             { success: false, message: 'Invalid match state' },
             { status: 400 }
@@ -93,8 +93,7 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        const validMotifs: MotifType[] = ['PPG', 'PGP', 'GPP'];
-        if (!validMotifs.includes(data.motif)) {
+        if (!VALID_MOTIFS.includes(data.motif)) {
           return NextResponse.json(
             { success: false, message: 'Invalid motif' },
             { status: 400 }

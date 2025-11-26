@@ -15,7 +15,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MATCH_STATES, VALID_MOTIFS } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -243,9 +243,6 @@ function HostPageContent() {
     );
   }
 
-  const matchStates: MatchState[] = ['NOT_STARTED', 'AUTONOMOUS', 'TELEOP', 'END_GAME', 'FINISHED', 'UNDER_REVIEW'];
-  const motifs: MotifType[] = ['PPG', 'PGP', 'GPP'];
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Score Bar - Fixed at top */}
@@ -297,10 +294,10 @@ function HostPageContent() {
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">⏱️ Match State</h3>
           <div className="flex flex-wrap gap-2">
-            {matchStates.map((state) => (
+            {VALID_MATCH_STATES.map((state) => (
               <button
                 key={state}
-                onClick={() => setMatchState(state)}
+                onClick={() => setMatchState(state as MatchState)}
                 className={`px-4 py-2 rounded font-bold transition-colors ${
                   eventData?.match_state === state
                     ? 'bg-green-600 text-white'
@@ -317,10 +314,10 @@ function HostPageContent() {
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">🎨 Motif Pattern</h3>
           <div className="flex gap-2">
-            {motifs.map((motif) => (
+            {VALID_MOTIFS.map((motif) => (
               <button
                 key={motif}
-                onClick={() => setMotif(motif)}
+                onClick={() => setMotif(motif as MotifType)}
                 className={`px-6 py-3 rounded font-bold text-lg transition-colors ${
                   eventData?.motif === motif
                     ? 'bg-purple-600 text-white'
