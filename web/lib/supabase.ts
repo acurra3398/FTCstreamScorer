@@ -318,10 +318,20 @@ export async function createEvent(
   };
 }
 
+// Custom error class for Supabase not configured
+export class SupabaseNotConfiguredError extends Error {
+  constructor() {
+    super('Supabase not configured. Please set up the backend.');
+    this.name = 'SupabaseNotConfiguredError';
+  }
+}
+
 // Fetch event by name
 export async function fetchEvent(eventName: string): Promise<EventData | null> {
   const client = getSupabaseClient();
-  if (!client) return null;
+  if (!client) {
+    throw new SupabaseNotConfiguredError();
+  }
   
   const { data, error } = await client
     .from('events')
@@ -344,7 +354,9 @@ export async function updateEventScores(
   score: Partial<DecodeScore>
 ): Promise<boolean> {
   const client = getSupabaseClient();
-  if (!client) return false;
+  if (!client) {
+    throw new SupabaseNotConfiguredError();
+  }
   
   const prefix = alliance.toLowerCase();
   const updateData: Record<string, unknown> = {};
@@ -383,7 +395,9 @@ export async function recordMatch(
   event: EventData
 ): Promise<boolean> {
   const client = getSupabaseClient();
-  if (!client) return false;
+  if (!client) {
+    throw new SupabaseNotConfiguredError();
+  }
   
   const redScore = extractRedScore(event);
   const blueScore = extractBlueScore(event);
@@ -425,7 +439,9 @@ export async function recordMatch(
 // Get match history for an event
 export async function getMatchHistory(eventName: string): Promise<MatchRecord[]> {
   const client = getSupabaseClient();
-  if (!client) return [];
+  if (!client) {
+    throw new SupabaseNotConfiguredError();
+  }
   
   const { data, error } = await client
     .from('match_records')
