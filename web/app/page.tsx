@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { COLORS } from '@/lib/constants';
-import { createEvent } from '@/lib/supabase';
 
 export default function HomePage() {
   const [mode, setMode] = useState<'join' | 'create'>('join');
@@ -49,7 +48,14 @@ export default function HomePage() {
     setSuccess('');
 
     try {
-      const result = await createEvent(eventName, password);
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ eventName, password }),
+      });
+      const result = await response.json();
       if (result.success) {
         setSuccess(result.message);
       } else {
