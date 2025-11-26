@@ -118,6 +118,12 @@ function ScoringPageContent() {
   // Timer display synced from host
   const [timerDisplay, setTimerDisplay] = useState('--:--');
   const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
+  
+  // Score submission state
+  const [scoresSubmitted, setScoresSubmitted] = useState(false);
+  
+  // Track last match state to detect new match
+  const [lastMatchState, setLastMatchState] = useState<string | null>(null);
 
   // Verify and connect to event
   useEffect(() => {
@@ -176,13 +182,32 @@ function ScoringPageContent() {
       try {
         const data = await fetchEventAPI(eventName);
         if (data) {
-          setEventData(data);
-          // Only update the alliance we're NOT scoring
-          if (alliance === 'RED') {
-            setBlueScore(extractBlueScore(data));
-          } else {
+          // Detect new match start - reset scores when match state transitions to NOT_STARTED
+          if (data.match_state === 'NOT_STARTED' && lastMatchState !== null && lastMatchState !== 'NOT_STARTED') {
+            // New match started - reset local scores and submission state
             setRedScore(extractRedScore(data));
+            setBlueScore(extractBlueScore(data));
+            setScoresSubmitted(false);
+          } else {
+            // Only update the alliance we're NOT scoring (opponent's score)
+            if (alliance === 'RED') {
+              setBlueScore(extractBlueScore(data));
+            } else {
+              setRedScore(extractRedScore(data));
+            }
           }
+          
+          // Sync the scores submitted state from server
+          const serverSubmittedStatus = alliance === 'RED' 
+            ? data.red_scores_submitted 
+            : data.blue_scores_submitted;
+          if (serverSubmittedStatus !== undefined) {
+            setScoresSubmitted(serverSubmittedStatus);
+          }
+          
+          setEventData(data);
+          setLastMatchState(data.match_state);
+          
           // Sync timer display from host with precise timing
           setTimerDisplay(formatTimeDisplay(calculatePreciseTimerSeconds(data)));
           setCountdownDisplay(data.countdown_number ?? null);
@@ -194,7 +219,7 @@ function ScoringPageContent() {
     }, 500);
 
     return () => clearInterval(interval);
-  }, [isConnected, eventName, alliance]);
+  }, [isConnected, eventName, alliance, lastMatchState]);
 
   // Handle score change
   const handleScoreChange = useCallback(async (
@@ -243,10 +268,36 @@ function ScoringPageContent() {
     const defaultScore = createDefaultScore();
     setRedScore(defaultScore);
     setBlueScore(defaultScore);
+    setScoresSubmitted(false);
     
     // Update server via API
     await updateEventScoresAPI(eventName, 'RED', defaultScore);
     await updateEventScoresAPI(eventName, 'BLUE', defaultScore);
+  };
+  
+  // Submit final scores for this alliance
+  const handleSubmitFinalScores = async () => {
+    if (!confirm(`Submit final scores for ${alliance} alliance? This will indicate your alliance's scoring is complete.`)) return;
+    
+    try {
+      // Send submission status to server
+      const response = await fetch(`/api/events/${encodeURIComponent(eventName)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alliance, scoresSubmitted: true }),
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        setScoresSubmitted(true);
+        alert(`${alliance} alliance scores submitted! Waiting for host to release final results.`);
+      } else {
+        alert(`Failed to submit scores: ${result.message}`);
+      }
+    } catch (err) {
+      console.error('Error submitting scores:', err);
+      alert('Failed to submit scores. Please try again.');
+    }
   };
 
   if (isLoading) {
@@ -332,8 +383,33 @@ function ScoringPageContent() {
         </div>
       </div>
 
+      {/* Submit Final Scores Button - only show when match is under review */}
+      {(eventData?.match_state === 'FINISHED' || eventData?.match_state === 'UNDER_REVIEW') && !scoresSubmitted && (
+        <div className="sticky bottom-20 bg-yellow-100 p-4 flex justify-center border-y-2 border-yellow-500">
+          <button
+            onClick={handleSubmitFinalScores}
+            className={`px-8 py-4 text-white rounded-lg font-bold text-xl hover:opacity-90 transition-colors animate-pulse ${
+              alliance === 'RED' ? 'bg-red-600' : 'bg-blue-600'
+            }`}
+          >
+            ✅ Submit Final Scores for {alliance} Alliance
+          </button>
+        </div>
+      )}
+      
+      {/* Show submitted status */}
+      {scoresSubmitted && (
+        <div className={`sticky bottom-20 p-4 flex justify-center border-y-2 ${
+          alliance === 'RED' ? 'bg-red-100 border-red-500' : 'bg-blue-100 border-blue-500'
+        }`}>
+          <div className={`text-xl font-bold ${alliance === 'RED' ? 'text-red-700' : 'text-blue-700'}`}>
+            ✅ {alliance} Alliance Scores Submitted - Waiting for host to release final results
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
-      <div className="sticky bottom-0 bg-gray-800 p-4 flex gap-4 justify-center">
+      <div className="sticky bottom-0 bg-gray-800 p-4 flex gap-4 justify-center flex-wrap">
         <button
           onClick={handleRecordMatch}
           className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-purple-700"

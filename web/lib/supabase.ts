@@ -3,7 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Types for DECODE scoring (2025-2026 FTC season)
 export type MotifType = 'PPG' | 'PGP' | 'GPP';
 export type BaseStatus = 'NOT_IN_BASE' | 'PARTIALLY_IN_BASE' | 'FULLY_IN_BASE';
-export type MatchState = 'NOT_STARTED' | 'AUTONOMOUS' | 'TRANSITION' | 'TELEOP' | 'END_GAME' | 'FINISHED' | 'UNDER_REVIEW';
+export type MatchState = 'NOT_STARTED' | 'AUTONOMOUS' | 'TRANSITION' | 'TELEOP' | 'END_GAME' | 'FINISHED' | 'UNDER_REVIEW' | 'SCORES_RELEASED';
 
 export interface DecodeScore {
   autoClassified: number;
@@ -83,6 +83,10 @@ export interface EventData {
   blue_robot2_base: BaseStatus;
   blue_major_fouls: number;
   blue_minor_fouls: number;
+  
+  // Referee score submission flags
+  red_scores_submitted?: boolean;
+  blue_scores_submitted?: boolean;
 }
 
 export interface MatchRecord {

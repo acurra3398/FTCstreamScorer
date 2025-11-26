@@ -54,7 +54,7 @@ export const LAYOUT = {
 };
 
 // Valid match states (shared between client and server)
-export const VALID_MATCH_STATES = ['NOT_STARTED', 'AUTONOMOUS', 'TRANSITION', 'TELEOP', 'END_GAME', 'FINISHED', 'UNDER_REVIEW'] as const;
+export const VALID_MATCH_STATES = ['NOT_STARTED', 'AUTONOMOUS', 'TRANSITION', 'TELEOP', 'END_GAME', 'FINISHED', 'UNDER_REVIEW', 'SCORES_RELEASED'] as const;
 
 // Valid motif types (shared between client and server)
 export const VALID_MOTIFS = ['PPG', 'PGP', 'GPP'] as const;
@@ -79,6 +79,13 @@ export const AUDIO_FILES = {
   endgame: '/audio/endgame_start.mp3',
   endmatch: '/audio/endmatch.mp3',
   results: '/audio/results.wav',
+};
+
+// Video file paths for winner display
+export const VIDEO_FILES = {
+  redWinner: '/videos/red_winner.webm',
+  blueWinner: '/videos/blue_winner.webm',
+  tie: '/videos/tie.webm',
 };
 
 // Motif display names

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScoreBar from '@/components/ScoreBar';
 import { 
@@ -13,7 +13,7 @@ import {
   calculatePreciseTimerSeconds,
   formatTimeDisplay,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, MATCH_TIMING } from '@/lib/constants';
+import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES } from '@/lib/constants';
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -84,6 +84,15 @@ function DisplayPageContent() {
   
   // Countdown state for pre-match countdown display
   const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
+  
+  // Winner video state
+  const [showWinnerVideo, setShowWinnerVideo] = useState(false);
+  const [winnerVideoSrc, setWinnerVideoSrc] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
+  // Track if we've already triggered the video for this score release
+  const hasTriggeredVideo = useRef(false);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +109,50 @@ function DisplayPageContent() {
   const updateTimerDisplay = (data: EventData) => {
     const seconds = calculatePreciseTimerSeconds(data);
     setTimerDisplay(formatTimeDisplay(seconds));
+  };
+  
+  // Determine winner and show video when scores are released
+  useEffect(() => {
+    if (!eventData || eventData.match_state !== 'SCORES_RELEASED') {
+      // Reset when not in SCORES_RELEASED state
+      if (!eventData || eventData.match_state === 'NOT_STARTED') {
+        hasTriggeredVideo.current = false;
+        setShowWinnerVideo(false);
+        setWinnerVideoSrc(null);
+      }
+      return;
+    }
+    
+    // Only trigger once per score release
+    if (hasTriggeredVideo.current) return;
+    hasTriggeredVideo.current = true;
+    
+    const redTotal = calculateTotalWithPenalties(redScore, blueScore);
+    const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
+    
+    let videoSrc: string;
+    if (redTotal > blueTotal) {
+      videoSrc = VIDEO_FILES.redWinner;
+    } else if (blueTotal > redTotal) {
+      videoSrc = VIDEO_FILES.blueWinner;
+    } else {
+      videoSrc = VIDEO_FILES.tie;
+    }
+    
+    setWinnerVideoSrc(videoSrc);
+    setShowWinnerVideo(true);
+    
+    // Play results audio
+    if (audioRef.current) {
+      audioRef.current.src = AUDIO_FILES.results;
+      audioRef.current.play().catch(console.error);
+    }
+  }, [eventData?.match_state, redScore, blueScore]);
+  
+  // Handle video end
+  const handleVideoEnd = () => {
+    // Keep showing final scores after video ends
+    setShowWinnerVideo(false);
   };
 
   // Connect to event
@@ -326,54 +379,120 @@ function DisplayPageContent() {
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: COLORS.BLACK }}
         >
-          {eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
-            <iframe
-              src={eventData.livestream_url}
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation"
-            />
-          ) : eventData?.livestream_url ? (
-            <div className="text-yellow-500 text-center">
+          {/* Hidden audio element for results sound */}
+          <audio ref={audioRef} preload="auto" />
+          
+          {/* Winner Video Overlay */}
+          {showWinnerVideo && winnerVideoSrc && (
+            <div className="absolute inset-0 z-40">
+              <video
+                ref={videoRef}
+                src={winnerVideoSrc}
+                autoPlay
+                onEnded={handleVideoEnd}
+                className="w-full h-full object-contain"
+                style={{ backgroundColor: COLORS.BLACK }}
+              />
+            </div>
+          )}
+          
+          {/* Final Results Display (after video) */}
+          {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ backgroundColor: COLORS.BLACK }}>
               <div 
-                className="font-bold mb-2"
+                className="text-white font-bold mb-8"
                 style={{ 
-                  fontSize: '32px',
+                  fontSize: '72px',
                   fontFamily: 'Arial, sans-serif',
                 }}
               >
-                ⚠️ Invalid Stream URL
+                🏆 FINAL RESULTS 🏆
+              </div>
+              <div className="flex gap-32">
+                <div className="text-center">
+                  <div className="text-red-500 font-bold mb-2" style={{ fontSize: '36px' }}>RED ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                    {calculateTotalWithPenalties(redScore, blueScore)}
+                  </div>
+                  <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                    {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-blue-500 font-bold mb-2" style={{ fontSize: '36px' }}>BLUE ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                    {calculateTotalWithPenalties(blueScore, redScore)}
+                  </div>
+                  <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                    {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
+                  </div>
+                </div>
               </div>
               <div 
-                style={{ 
-                  fontSize: '18px',
-                  fontFamily: 'Arial, sans-serif',
-                }}
+                className="text-yellow-400 font-bold mt-8 animate-pulse"
+                style={{ fontSize: '48px' }}
               >
-                Only YouTube, Twitch, and Vimeo URLs are supported
+                {calculateTotalWithPenalties(redScore, blueScore) > calculateTotalWithPenalties(blueScore, redScore) 
+                  ? '🔴 RED WINS! 🔴' 
+                  : calculateTotalWithPenalties(blueScore, redScore) > calculateTotalWithPenalties(redScore, blueScore)
+                    ? '🔵 BLUE WINS! 🔵'
+                    : '🤝 TIE GAME! 🤝'
+                }
               </div>
             </div>
-          ) : (
-            <div className="text-gray-500 text-center">
-              <div 
-                className="font-bold mb-2"
-                style={{ 
-                  fontSize: '48px',
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >
-                📹 No Camera Feed
+          )}
+          
+          {/* Normal camera/stream display when not showing results */}
+          {!showWinnerVideo && eventData?.match_state !== 'SCORES_RELEASED' && (
+            eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
+              <iframe
+                src={eventData.livestream_url}
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                sandbox="allow-scripts allow-same-origin allow-presentation"
+              />
+            ) : eventData?.livestream_url ? (
+              <div className="text-yellow-500 text-center">
+                <div 
+                  className="font-bold mb-2"
+                  style={{ 
+                    fontSize: '32px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  ⚠️ Invalid Stream URL
+                </div>
+                <div 
+                  style={{ 
+                    fontSize: '18px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  Only YouTube, Twitch, and Vimeo URLs are supported
+                </div>
               </div>
-              <div 
-                style={{ 
-                  fontSize: '24px',
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >
-                Set livestream URL in host controls
+            ) : (
+              <div className="text-gray-500 text-center">
+                <div 
+                  className="font-bold mb-2"
+                  style={{ 
+                    fontSize: '48px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  📹 Waiting for Match
+                </div>
+                <div 
+                  style={{ 
+                    fontSize: '24px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  Display will show match when host starts
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
 
@@ -402,9 +521,91 @@ function DisplayPageContent() {
   // Full display mode - colored panels with score bar
   return (
     <div 
-      className="w-full h-screen flex flex-col overflow-hidden"
+      className="w-full h-screen flex flex-col overflow-hidden relative"
       style={{ backgroundColor: COLORS.BLACK }}
     >
+      {/* Hidden audio element for results sound */}
+      <audio ref={audioRef} preload="auto" />
+      
+      {/* Countdown overlay */}
+      {countdownDisplay !== null && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div 
+            className="text-white font-bold animate-pulse"
+            style={{ 
+              fontSize: '300px',
+              fontFamily: 'Arial, sans-serif',
+              textShadow: '0 0 50px rgba(255, 255, 255, 0.5)',
+            }}
+          >
+            {countdownDisplay}
+          </div>
+        </div>
+      )}
+      
+      {/* Winner Video Overlay */}
+      {showWinnerVideo && winnerVideoSrc && (
+        <div className="absolute inset-0 z-40">
+          <video
+            ref={videoRef}
+            src={winnerVideoSrc}
+            autoPlay
+            onEnded={handleVideoEnd}
+            className="w-full h-full object-contain"
+            style={{ backgroundColor: COLORS.BLACK }}
+          />
+        </div>
+      )}
+      
+      {/* Final Results Display (after video) */}
+      {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ backgroundColor: COLORS.BLACK }}>
+          <div 
+            className="text-white font-bold mb-8"
+            style={{ 
+              fontSize: '72px',
+              fontFamily: 'Arial, sans-serif',
+            }}
+          >
+            🏆 FINAL RESULTS 🏆
+          </div>
+          <div className="flex gap-32">
+            <div className="text-center">
+              <div className="text-red-500 font-bold mb-2" style={{ fontSize: '36px' }}>RED ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                {redTotal}
+              </div>
+              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-blue-500 font-bold mb-2" style={{ fontSize: '36px' }}>BLUE ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                {blueTotal}
+              </div>
+              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
+              </div>
+            </div>
+          </div>
+          <div 
+            className="text-yellow-400 font-bold mt-8 animate-pulse"
+            style={{ fontSize: '48px' }}
+          >
+            {redTotal > blueTotal 
+              ? '🔴 RED WINS! 🔴' 
+              : blueTotal > redTotal
+                ? '🔵 BLUE WINS! 🔵'
+                : '🤝 TIE GAME! 🤝'
+            }
+          </div>
+        </div>
+      )}
+      
       {/* Video/Content Area - 83.12% of height */}
       <div 
         className="flex w-full"
