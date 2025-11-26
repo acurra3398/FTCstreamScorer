@@ -8,27 +8,44 @@ Perfect for teams streaming scrimmages, practice matches, or unofficial events.
 
 ## 📥 Download & Install
 
-Native installers are automatically built for all platforms via GitHub Actions.
+### Quick Download (Windows)
 
-### Windows (Recommended)
-1. **Download** the latest installer from the [Releases page](../../releases)
-2. **Run** the `.msi` installer
-3. **Launch** "FTC Stream Scorer" from your Start Menu
+**Option 1: Download the Installer (Recommended)**
+1. Go to the [`Output/`](../../tree/main/Output) folder in this repository
+2. Click on `FTCStreamScorer-Setup.exe`
+3. Click the **Download raw file** button (download icon on the right)
+4. Run the downloaded installer and follow the prompts
+5. Launch "FTC Stream Scorer" from your desktop or Start Menu
 
-### macOS
-1. **Download** the `.dmg` file from the [Releases page](../../releases)
-2. **Open** the file and drag the app to your Applications folder
-3. **Launch** from your Applications
+**Option 2: Download the Standalone Executable**
+1. Click on [`StreamScorer.exe`](../../blob/main/StreamScorer.exe) in this repository
+2. Click the **Download raw file** button (download icon on the right)
+3. Save it to your desktop or preferred folder
+4. Double-click to run - no installation required!
 
-### Linux
-1. **Download** the `.deb` file from the [Releases page](../../releases)
-2. **Install** with: `sudo dpkg -i FTCStreamScorer*.deb`
-3. **Launch** from your applications menu
+### From Releases Page
+
+If available, you can also download from the [Releases page](../../releases):
+
+**Windows**
+1. Download the latest `.msi` or `.exe` installer
+2. Run the installer
+3. Launch "FTC Stream Scorer" from your Start Menu
+
+**macOS**
+1. Download the `.dmg` file
+2. Open the file and drag the app to your Applications folder
+3. Launch from your Applications
+
+**Linux**
+1. Download the `.deb` file
+2. Install with: `sudo dpkg -i FTCStreamScorer*.deb`
+3. Launch from your applications menu
 
 ### Alternative: Run the JAR file (requires Java)
-If installers aren't available for your platform, you can run the JAR file directly:
+If you prefer to run from source or need cross-platform compatibility:
 1. Install [Java 11 or higher](https://adoptium.net/)
-2. Download `stream-scorer-1.0.0.jar` from Releases
+2. Download `stream-scorer-1.0.0.jar` from Releases (if available)
 3. Double-click the JAR file, or run: `java -jar stream-scorer-1.0.0.jar`
 
 ---
