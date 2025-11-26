@@ -10,20 +10,89 @@ import {
   EventData, 
   MatchRecord,
   BaseStatus,
-  SupabaseNotConfiguredError,
-  DatabaseConnectionError,
-  ForbiddenApiKeyError,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
-  fetchEvent,
-  updateEventScores,
-  verifyEventPassword,
-  recordMatch,
-  getMatchHistory,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { MOTIF_NAMES } from '@/lib/constants';
+
+// API helper functions - all calls go through server-side API routes
+async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
+  try {
+    const response = await fetch('/api/events/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventName, password }),
+    });
+    const result = await response.json();
+    return result.success === true;
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return false;
+  }
+}
+
+async function fetchEventAPI(eventName: string): Promise<EventData | null> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}`);
+    const result = await response.json();
+    if (result.success && result.event) {
+      return result.event as EventData;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching event:', error);
+    return null;
+  }
+}
+
+async function updateEventScoresAPI(
+  eventName: string, 
+  alliance: 'RED' | 'BLUE', 
+  score: Partial<DecodeScore>
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alliance, score }),
+    });
+    const result = await response.json();
+    return result.success === true;
+  } catch (error) {
+    console.error('Error updating scores:', error);
+    return false;
+  }
+}
+
+async function recordMatchAPI(eventName: string, matchNumber: number): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchNumber }),
+    });
+    const result = await response.json();
+    return result.success === true;
+  } catch (error) {
+    console.error('Error recording match:', error);
+    return false;
+  }
+}
+
+async function getMatchHistoryAPI(eventName: string): Promise<MatchRecord[]> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}/matches`);
+    const result = await response.json();
+    if (result.success && result.matches) {
+      return result.matches as MatchRecord[];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching match history:', error);
+    return [];
+  }
+}
 
 function ScoringPageContent() {
   const searchParams = useSearchParams();
@@ -34,7 +103,6 @@ function ScoringPageContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [errorType, setErrorType] = useState<'connection' | 'configuration'>('connection');
   const [lastSync, setLastSync] = useState('');
   
   const [redScore, setRedScore] = useState<DecodeScore>(createDefaultScore());
@@ -55,16 +123,16 @@ function ScoringPageContent() {
       }
 
       try {
-        // Verify password
-        const isValid = await verifyEventPassword(eventName, password);
+        // Verify password via API
+        const isValid = await verifyEventPasswordAPI(eventName, password);
         if (!isValid) {
           setError('Invalid event name or password');
           setIsLoading(false);
           return;
         }
 
-        // Fetch initial data
-        const data = await fetchEvent(eventName);
+        // Fetch initial data via API
+        const data = await fetchEventAPI(eventName);
         if (!data) {
           setError('Event not found');
           setIsLoading(false);
@@ -77,36 +145,13 @@ function ScoringPageContent() {
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
         
-        // Load match history
-        const history = await getMatchHistory(eventName);
+        // Load match history via API
+        const history = await getMatchHistoryAPI(eventName);
         setMatchHistory(history);
         setMatchNumber(history.length + 1);
         
       } catch (err) {
-        if (err instanceof ForbiddenApiKeyError) {
-          setErrorType('configuration');
-          setError(
-            'A secret API key is being used in the browser. ' +
-            'Please check your environment configuration. Use the anon/public key for NEXT_PUBLIC_SUPABASE_ANON_KEY, ' +
-            'not the service role key. Contact your administrator to fix this security issue.'
-          );
-        } else if (err instanceof SupabaseNotConfiguredError) {
-          setErrorType('configuration');
-          setError('Database not configured. Please set up Supabase backend first.');
-        } else if (err instanceof DatabaseConnectionError) {
-          setErrorType('connection');
-          setError('Connection error: ' + err.message);
-        } else if (err instanceof Error && err.message.includes('Forbidden')) {
-          // Catch any other forbidden errors from Supabase directly
-          setErrorType('configuration');
-          setError(
-            'Forbidden access detected. This usually means a service role key is being used ' +
-            'instead of the anon/public key. Please check your NEXT_PUBLIC_SUPABASE_ANON_KEY configuration.'
-          );
-        } else {
-          setErrorType('connection');
-          setError('Connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
-        }
+        setError('Connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       } finally {
         setIsLoading(false);
       }
@@ -121,7 +166,7 @@ function ScoringPageContent() {
 
     const interval = setInterval(async () => {
       try {
-        const data = await fetchEvent(eventName);
+        const data = await fetchEventAPI(eventName);
         if (data) {
           setEventData(data);
           // Only update the alliance we're NOT scoring
@@ -157,9 +202,9 @@ function ScoringPageContent() {
       [field]: value,
     }));
 
-    // Send to server
+    // Send to server via API
     try {
-      await updateEventScores(eventName, scoringAlliance, { [field]: value });
+      await updateEventScoresAPI(eventName, scoringAlliance, { [field]: value });
     } catch (err) {
       console.error('Failed to update score:', err);
     }
@@ -169,9 +214,9 @@ function ScoringPageContent() {
   const handleRecordMatch = async () => {
     if (!eventData) return;
     
-    const success = await recordMatch(eventName, matchNumber, eventData);
+    const success = await recordMatchAPI(eventName, matchNumber);
     if (success) {
-      const history = await getMatchHistory(eventName);
+      const history = await getMatchHistoryAPI(eventName);
       setMatchHistory(history);
       setMatchNumber(history.length + 1);
       alert(`Match ${matchNumber} recorded successfully!`);
@@ -188,9 +233,9 @@ function ScoringPageContent() {
     setRedScore(defaultScore);
     setBlueScore(defaultScore);
     
-    // Update server
-    await updateEventScores(eventName, 'RED', defaultScore);
-    await updateEventScores(eventName, 'BLUE', defaultScore);
+    // Update server via API
+    await updateEventScoresAPI(eventName, 'RED', defaultScore);
+    await updateEventScoresAPI(eventName, 'BLUE', defaultScore);
   };
 
   if (isLoading) {
@@ -205,41 +250,11 @@ function ScoringPageContent() {
   }
 
   if (error) {
-    const getErrorTitle = () => {
-      switch (errorType) {
-        case 'configuration':
-          return '⚠️ Configuration Error';
-        default:
-          return '❌ Connection Error';
-      }
-    };
-
-    const getErrorColor = () => {
-      switch (errorType) {
-        case 'configuration':
-          return 'bg-orange-800';
-        default:
-          return 'bg-red-900';
-      }
-    };
-
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-        <div className={`${getErrorColor()} text-white p-6 rounded-lg max-w-lg text-center`}>
-          <h2 className="text-2xl font-bold mb-4">{getErrorTitle()}</h2>
+        <div className="bg-red-900 text-white p-6 rounded-lg max-w-lg text-center">
+          <h2 className="text-2xl font-bold mb-4">❌ Connection Error</h2>
           <p className="mb-4 text-left">{error}</p>
-          {errorType === 'configuration' && (
-            <div className="bg-black/30 p-3 rounded text-sm text-left mb-4">
-              <p className="font-bold mb-2">How to fix:</p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>Go to your Supabase project dashboard</li>
-                <li>Navigate to Project Settings → API</li>
-                <li>Copy the <strong>anon (public)</strong> key</li>
-                <li>Set it as NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
-                <li>Redeploy your application</li>
-              </ol>
-            </div>
-          )}
           <button
             onClick={() => window.location.href = '/'}
             className="bg-white text-gray-900 px-6 py-2 rounded font-bold"

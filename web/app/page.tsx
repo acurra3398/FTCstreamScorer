@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { COLORS } from '@/lib/constants';
 
 export default function HomePage() {
-  const [mode, setMode] = useState<'join' | 'create'>('join');
+  const [mode, setMode] = useState<'join' | 'create' | 'host'>('join');
   const [eventName, setEventName] = useState('');
   const [password, setPassword] = useState('');
   const [alliance, setAlliance] = useState<'RED' | 'BLUE'>('RED');
@@ -30,6 +30,24 @@ export default function HomePage() {
       alliance: alliance,
     });
     window.location.href = `/score?${params.toString()}`;
+  };
+
+  const handleHost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventName.trim()) {
+      setError('Please enter an event name');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Please enter the password');
+      return;
+    }
+    // Navigate to host page
+    const params = new URLSearchParams({
+      event: eventName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+      password: password,
+    });
+    window.location.href = `/host?${params.toString()}`;
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -68,6 +86,22 @@ export default function HomePage() {
     }
   };
 
+  const getFormHandler = () => {
+    switch (mode) {
+      case 'join': return handleJoin;
+      case 'host': return handleHost;
+      case 'create': return handleCreate;
+    }
+  };
+
+  const getFormTitle = () => {
+    switch (mode) {
+      case 'join': return 'Join Event';
+      case 'host': return 'Host Event';
+      case 'create': return 'Create New Event';
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center p-4">
       {/* Header */}
@@ -80,10 +114,10 @@ export default function HomePage() {
       </div>
 
       {/* Mode Toggle */}
-      <div className="bg-gray-700 rounded-lg p-1 mb-6 flex">
+      <div className="bg-gray-700 rounded-lg p-1 mb-6 flex flex-wrap justify-center gap-1">
         <button
           onClick={() => { setMode('join'); setError(''); setSuccess(''); }}
-          className={`px-6 py-2 rounded-md font-bold transition-all ${
+          className={`px-4 py-2 rounded-md font-bold transition-all ${
             mode === 'join' 
               ? 'bg-blue-600 text-white' 
               : 'text-gray-300 hover:text-white'
@@ -92,10 +126,20 @@ export default function HomePage() {
           Join Event
         </button>
         <button
-          onClick={() => { setMode('create'); setError(''); setSuccess(''); }}
-          className={`px-6 py-2 rounded-md font-bold transition-all ${
-            mode === 'create' 
+          onClick={() => { setMode('host'); setError(''); setSuccess(''); }}
+          className={`px-4 py-2 rounded-md font-bold transition-all ${
+            mode === 'host' 
               ? 'bg-green-600 text-white' 
+              : 'text-gray-300 hover:text-white'
+          }`}
+        >
+          Host Event
+        </button>
+        <button
+          onClick={() => { setMode('create'); setError(''); setSuccess(''); }}
+          className={`px-4 py-2 rounded-md font-bold transition-all ${
+            mode === 'create' 
+              ? 'bg-purple-600 text-white' 
               : 'text-gray-300 hover:text-white'
           }`}
         >
@@ -106,10 +150,10 @@ export default function HomePage() {
       {/* Form */}
       <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          {mode === 'join' ? 'Join Event' : 'Create New Event'}
+          {getFormTitle()}
         </h2>
 
-        <form onSubmit={mode === 'join' ? handleJoin : handleCreate} className="space-y-4">
+        <form onSubmit={getFormHandler()} className="space-y-4">
           {/* Event Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -187,6 +231,13 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* Host Mode Description */}
+          {mode === 'host' && (
+            <div className="bg-green-50 p-3 rounded-lg text-sm text-green-800">
+              <strong>Host Mode:</strong> Control match state, set teams, manage motif pattern, and reset scores. Share the display link with your stream software.
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="bg-red-100 text-red-700 p-3 rounded-lg text-center">
@@ -208,13 +259,17 @@ export default function HomePage() {
             className={`w-full p-4 rounded-lg font-bold text-xl transition-colors ${
               mode === 'join'
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-green-600 hover:bg-green-700 text-white'
+                : mode === 'host'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
             } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isLoading 
               ? 'Creating...' 
               : mode === 'join' 
                 ? 'Join & Start Scoring' 
+                : mode === 'host'
+                ? 'Open Host Controls'
                 : 'Create Event'
             }
           </button>
@@ -222,7 +277,13 @@ export default function HomePage() {
 
         {/* Quick switch after creating */}
         {mode === 'create' && success && (
-          <div className="mt-4 text-center">
+          <div className="mt-4 text-center space-y-2">
+            <button
+              onClick={() => { setMode('host'); setSuccess(''); }}
+              className="text-green-600 hover:text-green-800 font-medium block w-full"
+            >
+              → Host your event (control match state & teams)
+            </button>
             <button
               onClick={() => { setMode('join'); setSuccess(''); }}
               className="text-blue-600 hover:text-blue-800 font-medium"
@@ -248,6 +309,8 @@ export default function HomePage() {
         <p className="text-sm">
           {mode === 'join' 
             ? <><strong>How it works:</strong> The host creates an event, then referees join using their iPads or tablets to score for their assigned alliance.</>
+            : mode === 'host'
+            ? <><strong>Host mode:</strong> Control the match flow - set teams, change match state, choose the motif pattern, and reset scores between matches.</>
             : <><strong>Creating an event:</strong> Choose a unique name and password. Share these with your referees so they can join and score.</>
           }
         </p>
