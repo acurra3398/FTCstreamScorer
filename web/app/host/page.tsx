@@ -17,7 +17,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -364,9 +364,7 @@ function HostPageContent() {
         setAudioStatus('Audio streaming active - Microphone is live!');
         
         // Create WebRTC peer connection for audio
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
         // Add audio track to connection
@@ -375,9 +373,6 @@ function HostPageContent() {
         });
         
         // Handle ICE candidates
-        // Note: ICE candidates are sent immediately as they're gathered.
-        // In a production system, you might want to batch these or use 
-        // Supabase Realtime for more efficient signaling.
         const iceCandidates: RTCIceCandidate[] = [];
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
@@ -389,6 +384,15 @@ function HostPageContent() {
           }
         };
         
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'connected') {
+            setAudioStatus('🎙️ Audio streaming - Connected to display!');
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            setAudioStatus('⚠️ Audio connection lost');
+          }
+        };
+        
         // Create offer
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -397,9 +401,69 @@ function HostPageContent() {
         await hostActionAPI(eventName, password, 'setAudioState', { 
           audioEnabled: true,
           audioSdpOffer: JSON.stringify(offer),
+          audioSdpAnswer: '', // Clear any old answer
+          audioIceCandidatesDisplay: '[]', // Clear any old display candidates
         });
         
-        setAudioStatus('Audio streaming active - Waiting for display to connect...');
+        setAudioStatus('🎙️ Waiting for display to connect...');
+        
+        // Poll for display's answer with timeout
+        let pollAttempts = 0;
+        const pollForAnswer = setInterval(async () => {
+          pollAttempts++;
+          
+          // Timeout after max attempts
+          if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
+            clearInterval(pollForAnswer);
+            setAudioStatus('⏱️ Connection timeout - Display may not be connected');
+            return;
+          }
+          
+          try {
+            const data = await fetchEventAPI(eventName);
+            if (data?.audio_sdp_answer && pc.signalingState === 'have-local-offer') {
+              // Display has sent an answer
+              try {
+                const answer = JSON.parse(data.audio_sdp_answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                setAudioStatus('🎙️ Audio streaming - LIVE');
+                
+                // Add display's ICE candidates
+                if (data.audio_ice_candidates_display) {
+                  try {
+                    const displayCandidates = JSON.parse(data.audio_ice_candidates_display);
+                    for (const candidate of displayCandidates) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                      } catch (e) {
+                        console.error('Error adding display audio ICE candidate:', e);
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error parsing display audio ICE candidates:', e);
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing audio SDP answer:', e);
+              }
+              
+              clearInterval(pollForAnswer);
+            }
+          } catch (err) {
+            console.error('Error polling for audio answer:', err);
+          }
+        }, WEBRTC_POLLING.INTERVAL_MS);
+        
+        // Store interval ID for cleanup
+        const currentPollRef = { interval: pollForAnswer };
+        
+        // Cleanup on stop - store reference in closure for the stop handler
+        const originalClose = pc.close.bind(pc);
+        pc.close = () => {
+          clearInterval(currentPollRef.interval);
+          originalClose();
+        };
+        
       } catch (err) {
         console.error('Error starting audio:', err);
         setAudioStatus('Failed to start audio: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -432,12 +496,7 @@ function HostPageContent() {
         setCameraStatus('Starting video stream...');
         
         // Create WebRTC peer connection for video
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         videoPeerConnectionRef.current = pc;
         
         // Add video track to connection
@@ -483,12 +542,11 @@ function HostPageContent() {
         
         // Poll for display's answer with timeout
         let pollAttempts = 0;
-        const maxPollAttempts = 30; // 30 seconds timeout
         const pollForAnswer = setInterval(async () => {
           pollAttempts++;
           
-          // Timeout after 30 seconds
-          if (pollAttempts > maxPollAttempts) {
+          // Timeout after max attempts
+          if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
             clearInterval(pollForAnswer);
             setCameraStatus('⏱️ Connection timeout - Display may not be connected');
             return;
@@ -527,7 +585,7 @@ function HostPageContent() {
           } catch (err) {
             console.error('Error polling for video answer:', err);
           }
-        }, 1000);
+        }, WEBRTC_POLLING.INTERVAL_MS);
         
         // Store interval ID in a ref for proper cleanup on component unmount
         const currentPollRef = { interval: pollForAnswer };

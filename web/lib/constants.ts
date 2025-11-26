@@ -66,7 +66,7 @@ export const MATCH_TIMING = {
   TELEOP_DURATION: 120,     // 2 minutes teleop
   ENDGAME_START: 90,        // End game starts at 90 seconds into teleop (30 sec remaining)
   TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
-  COUNTDOWN_NUMBERS: [5, 4, 3, 2, 1] as readonly number[], // Pre-match countdown sequence
+  COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence (matches countdown.wav timing)
   COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds (matches countdown.wav timing)
 };
 
@@ -100,4 +100,39 @@ export const BASE_STATUS_NAMES: Record<string, string> = {
   NOT_IN_BASE: 'Not in BASE',
   PARTIALLY_IN_BASE: 'Partially in BASE',
   FULLY_IN_BASE: 'Fully in BASE',
+};
+
+// WebRTC ICE server configuration
+// Includes STUN servers for NAT traversal and TURN servers for relay fallback
+export const WEBRTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    // Google STUN servers (free, for NAT traversal)
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    // OpenRelay TURN servers (free, for relay when direct connection fails)
+    // These are public TURN servers provided by metered.ca
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  ],
+  iceCandidatePoolSize: 10,
+};
+
+// WebRTC signaling polling configuration
+export const WEBRTC_POLLING = {
+  MAX_ATTEMPTS: 30,        // Maximum polling attempts before timeout
+  INTERVAL_MS: 1000,       // Polling interval in milliseconds
 };

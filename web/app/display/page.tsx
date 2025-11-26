@@ -14,7 +14,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES } from '@/lib/constants';
+import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG } from '@/lib/constants';
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -166,9 +166,7 @@ function DisplayPageContent() {
           peerConnectionRef.current.close();
         }
         
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
         // Handle incoming audio track
@@ -176,6 +174,26 @@ function DisplayPageContent() {
           if (announcerAudioRef.current && event.streams[0]) {
             announcerAudioRef.current.srcObject = event.streams[0];
             announcerAudioRef.current.play().catch(console.error);
+          }
+        };
+        
+        // Collect ICE candidates to send back to host
+        const iceCandidates: RTCIceCandidate[] = [];
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            iceCandidates.push(event.candidate);
+            // Send candidates to database for host to pick up
+            try {
+              await fetch(`/api/events/${encodeURIComponent(eventName)}/audio-answer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
+                }),
+              });
+            } catch (e) {
+              console.error('Error sending audio ICE candidates:', e);
+            }
           }
         };
         
@@ -196,9 +214,17 @@ function DisplayPageContent() {
         await pc.setLocalDescription(answer);
         
         // Send answer back to host via API
-        // Note: This would need a separate mechanism to update the event
-        // For now, we're using a simplified approach where the connection 
-        // is established through the SDP exchange
+        try {
+          await fetch(`/api/events/${encodeURIComponent(eventName)}/audio-answer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              answer: JSON.stringify(answer)
+            }),
+          });
+        } catch (e) {
+          console.error('Error sending audio answer:', e);
+        }
       } catch (err) {
         console.error('Error setting up audio receiver:', err);
       }
@@ -214,7 +240,7 @@ function DisplayPageContent() {
         peerConnectionRef.current = null;
       }
     };
-  }, [eventData?.audio_enabled, eventData?.audio_sdp_offer, eventData?.audio_ice_candidates]);
+  }, [eventData?.audio_enabled, eventData?.audio_sdp_offer, eventData?.audio_ice_candidates, eventName]);
   
   // Handle WebRTC video streaming from host
   useEffect(() => {
@@ -256,12 +282,7 @@ function DisplayPageContent() {
           videoPeerConnectionRef.current.close();
         }
         
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         videoPeerConnectionRef.current = pc;
         
         // Handle incoming video track
@@ -610,25 +631,6 @@ function DisplayPageContent() {
             Note: This element only renders in camera mode. For full display mode, 
             a similar element is rendered below. Only one mode is active at a time. */}
         <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
-        
-        {/* Countdown overlay */}
-        {countdownDisplay !== null && (
-          <div 
-            className="absolute inset-0 flex items-center justify-center z-50"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-          >
-            <div 
-              className="text-white font-bold animate-pulse"
-              style={{ 
-                fontSize: '300px',
-                fontFamily: 'Arial, sans-serif',
-                textShadow: '0 0 50px rgba(255, 255, 255, 0.5)',
-              }}
-            >
-              {countdownDisplay}
-            </div>
-          </div>
-        )}
         
         {/* Host Camera / Video Area - takes up most of the screen */}
         <div 
@@ -1029,25 +1031,6 @@ function DisplayPageContent() {
           Note: This element only renders in full display mode. For camera mode,
           a similar element is rendered above. Only one mode is active at a time. */}
       <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
-      
-      {/* Countdown overlay */}
-      {countdownDisplay !== null && (
-        <div 
-          className="absolute inset-0 flex items-center justify-center z-50"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-        >
-          <div 
-            className="text-white font-bold animate-pulse"
-            style={{ 
-              fontSize: '300px',
-              fontFamily: 'Arial, sans-serif',
-              textShadow: '0 0 50px rgba(255, 255, 255, 0.5)',
-            }}
-          >
-            {countdownDisplay}
-          </div>
-        </div>
-      )}
       
       {/* Winner Video Overlay */}
       {showWinnerVideo && winnerVideoSrc && (
