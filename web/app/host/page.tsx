@@ -239,6 +239,7 @@ function HostPageContent() {
   const [recordingStatus, setRecordingStatus] = useState<string>('');
   const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [recordedMatchNumber, setRecordedMatchNumber] = useState<number | null>(null);
+  const [recordedFileExtension, setRecordedFileExtension] = useState<string>('mp4');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
@@ -290,11 +291,6 @@ function HostPageContent() {
     // Play results sound
     playAudio('results');
     
-    // Stop recording after a brief delay for the results animation
-    setTimeout(() => {
-      stopRecording();
-    }, 3000); // 3 second delay to capture final results display
-    
     setActionStatus(`Final scores released! ${
       redTotal > blueTotal ? 'RED WINS!' : 
       blueTotal > redTotal ? 'BLUE WINS!' : 
@@ -322,12 +318,19 @@ function HostPageContent() {
     const combinedStream = new MediaStream(tracks);
     
     try {
-      // Try to use WebM with VP9/Opus codecs for better quality, with fallbacks
-      let mimeType = 'video/webm;codecs=vp9,opus';
+      // Try to use MP4 first (supported in Safari, some Chrome versions), fallback to WebM
+      let mimeType = 'video/mp4';
+      let fileExtension = 'mp4';
+      
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'video/webm;codecs=vp8,opus';
+        // Fallback to WebM with VP9/Opus codecs for better quality
+        mimeType = 'video/webm;codecs=vp9,opus';
+        fileExtension = 'webm';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm';
+          mimeType = 'video/webm;codecs=vp8,opus';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'video/webm';
+          }
         }
       }
       
@@ -351,7 +354,9 @@ function HostPageContent() {
         const url = URL.createObjectURL(blob);
         setRecordedBlobUrl(url);
         setRecordedMatchNumber(matchHistory.length + 1);
-        setRecordingStatus('Recording saved! Click download to save.');
+        // Store the file extension for download
+        setRecordedFileExtension(fileExtension);
+        setRecordingStatus(`Recording saved as ${fileExtension.toUpperCase()}! Click download to save.`);
         setIsRecording(false);
       };
       
@@ -364,7 +369,7 @@ function HostPageContent() {
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
-      setRecordingStatus('🔴 Recording match...');
+      setRecordingStatus(`🔴 Recording match (${fileExtension.toUpperCase()})...`);
       
     } catch (err) {
       console.error('Error starting recording:', err);
@@ -389,11 +394,11 @@ function HostPageContent() {
     
     const a = document.createElement('a');
     a.href = recordedBlobUrl;
-    a.download = `match_${recordedMatchNumber || 'unknown'}_${safeEventName}_${new Date().toISOString().slice(0, 10)}.webm`;
+    a.download = `match_${recordedMatchNumber || 'unknown'}_${safeEventName}_${new Date().toISOString().slice(0, 10)}.${recordedFileExtension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }, [recordedBlobUrl, recordedMatchNumber, eventName]);
+  }, [recordedBlobUrl, recordedMatchNumber, eventName, recordedFileExtension]);
   
   // Clear recorded video
   const clearRecording = useCallback(() => {
@@ -402,6 +407,7 @@ function HostPageContent() {
     }
     setRecordedBlobUrl(null);
     setRecordedMatchNumber(null);
+    setRecordedFileExtension('mp4');
     setRecordingStatus('');
   }, [recordedBlobUrl]);
 
@@ -969,9 +975,6 @@ function HostPageContent() {
       setTimerPaused(false);
       waitingForSound.current = false;
       
-      // Start recording the match
-      startRecording();
-      
       // Sync match state and timer
       hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
       hostActionAPI(eventName, password, 'updateTimerState', { 
@@ -1012,9 +1015,6 @@ function HostPageContent() {
     setMatchPhase('NOT_STARTED');
     waitingForSound.current = false;
     stopAll();
-    
-    // Stop recording if active
-    stopRecording();
     
     try {
       await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
@@ -1528,7 +1528,7 @@ function HostPageContent() {
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">🎬 Match Recording</h3>
           <p className="text-sm text-gray-600 mb-3">
-            Automatically records video and audio from when the match starts until final scores are released.
+            Record video and audio manually. Start and stop recording at any time. Downloads are saved as {recordedFileExtension.toUpperCase()} format.
           </p>
           <div className="space-y-3">
             {/* Recording status */}
@@ -1547,10 +1547,19 @@ function HostPageContent() {
             
             {/* Recording controls */}
             <div className="flex gap-2 items-center flex-wrap">
+              {!isRecording && !recordedBlobUrl && (cameraStream || audioStream) && (
+                <button
+                  onClick={startRecording}
+                  className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
+                >
+                  🔴 Start Recording
+                </button>
+              )}
+              
               {isRecording && (
                 <button
                   onClick={stopRecording}
-                  className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
+                  className="px-4 py-2 bg-gray-700 text-white rounded font-bold hover:bg-gray-800"
                 >
                   ⏹️ Stop Recording
                 </button>
@@ -1562,7 +1571,7 @@ function HostPageContent() {
                     onClick={downloadRecording}
                     className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700"
                   >
-                    ⬇️ Download Match {recordedMatchNumber}
+                    ⬇️ Download Match {recordedMatchNumber} ({recordedFileExtension.toUpperCase()})
                   </button>
                   <button
                     onClick={clearRecording}
@@ -1571,12 +1580,6 @@ function HostPageContent() {
                     🗑️ Clear
                   </button>
                 </>
-              )}
-              
-              {!isRecording && !recordedBlobUrl && (cameraStream || audioStream) && (
-                <div className="text-sm text-gray-500">
-                  ✅ Ready to record - Recording will start automatically when match begins
-                </div>
               )}
               
               {!isRecording && !recordedBlobUrl && !cameraStream && !audioStream && (
@@ -1599,7 +1602,7 @@ function HostPageContent() {
             )}
             
             <p className="text-xs text-gray-500">
-              <strong>Note:</strong> Recordings are saved locally in your browser. Download them to keep them permanently.
+              <strong>Note:</strong> Recordings are saved locally in your browser. Click the download button to save them to your device.
             </p>
           </div>
         </div>

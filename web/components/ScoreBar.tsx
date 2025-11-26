@@ -84,13 +84,12 @@ export default function ScoreBar({
 
   return (
     <div style={overlayStyle}>
-      {/* Red Section - Left Panel (~33% width) */}
+      {/* Red Section - Left Panel (flexible width) */}
       <div 
-        className="flex items-center justify-end gap-[0.5vw] px-[1vw] py-[0.8vh]"
+        className="flex items-center justify-end gap-[0.5vw] px-[1vw] py-[0.8vh] overflow-hidden"
         style={{ 
           backgroundColor: COLORS.RED_PRIMARY,
-          width: '33.33%',
-          minWidth: '300px',
+          flex: '1 1 0',
         }}
       >
         {/* Team Box */}
@@ -129,17 +128,15 @@ export default function ScoreBar({
         <TotalScoreBox score={redTotal} color={COLORS.RED_PRIMARY} />
       </div>
 
-      {/* Center Info Box - Timer/Phase/Motif (~14.5% width, centered) */}
+      {/* Center Info Box - Timer/Phase/Motif (flexible width) */}
       <div 
-        className="flex flex-col items-center justify-center relative"
+        className="flex flex-col items-center justify-center relative flex-shrink-0"
         style={{ 
           backgroundColor: COLORS.WHITE,
-          width: '14.5%',
-          minWidth: '140px',
-          maxWidth: '200px',
+          width: 'clamp(100px, 15vw, 200px)',
           borderLeft: `2px solid ${COLORS.BLACK}`,
           borderRight: `2px solid ${COLORS.BLACK}`,
-          padding: '0.5vh 1vw',
+          padding: '0.5vh 0.5vw',
         }}
       >
         {/* Countdown overlay */}
@@ -195,13 +192,12 @@ export default function ScoreBar({
         </span>
       </div>
 
-      {/* Blue Section - Right Panel (~33% width) */}
+      {/* Blue Section - Right Panel (flexible width) */}
       <div 
-        className="flex items-center justify-start gap-[0.5vw] px-[1vw] py-[0.8vh]"
+        className="flex items-center justify-start gap-[0.5vw] px-[1vw] py-[0.8vh] overflow-hidden"
         style={{ 
           backgroundColor: COLORS.BLUE_PRIMARY,
-          width: '33.33%',
-          minWidth: '300px',
+          flex: '1 1 0',
         }}
       >
         {/* Total Score */}
@@ -260,21 +256,21 @@ function TeamBox({
   
   return (
     <div 
-      className="flex flex-col items-center justify-center"
+      className="flex flex-col items-center justify-center flex-shrink-0"
       style={{ 
         backgroundColor: COLORS.WHITE,
         border: `2px solid ${color}`,
         borderRadius: '2px',
-        minWidth: '60px',
+        minWidth: 'clamp(40px, 5vw, 60px)',
         maxWidth: '80px',
-        padding: '4px 6px',
+        padding: 'clamp(2px, 0.5vh, 4px) clamp(3px, 0.5vw, 6px)',
       }}
     >
       <span 
         className="font-bold leading-tight"
         style={{ 
           color: color,
-          fontSize: 'clamp(8px, 1vh, 12px)',
+          fontSize: 'clamp(6px, 0.8vh, 12px)',
           fontFamily: 'Arial, sans-serif',
         }}
       >
@@ -283,7 +279,7 @@ function TeamBox({
       <div 
         className="flex flex-col items-center text-black font-bold leading-tight text-center"
         style={{ 
-          fontSize: 'clamp(10px, 1.2vh, 14px)',
+          fontSize: 'clamp(8px, 1vh, 14px)',
           fontFamily: 'Arial, sans-serif',
         }}
       >
@@ -298,21 +294,21 @@ function TeamBox({
 function InfoBox({ icon, value, color }: { icon: string; value: number; color: string }) {
   return (
     <div 
-      className="flex flex-col items-center justify-center"
+      className="flex flex-col items-center justify-center flex-shrink-0"
       style={{ 
         backgroundColor: COLORS.WHITE,
         border: `2px solid ${color}`,
         borderRadius: '2px',
-        minWidth: '50px',
+        minWidth: 'clamp(35px, 4vw, 50px)',
         maxWidth: '70px',
-        padding: '4px',
+        padding: 'clamp(2px, 0.5vh, 4px)',
       }}
     >
-      <span style={{ fontSize: 'clamp(16px, 2vh, 24px)' }}>{icon}</span>
+      <span style={{ fontSize: 'clamp(12px, 1.5vh, 24px)' }}>{icon}</span>
       <span 
         className="font-bold text-black leading-tight"
         style={{ 
-          fontSize: 'clamp(12px, 1.5vh, 18px)',
+          fontSize: 'clamp(10px, 1.2vh, 18px)',
           fontFamily: 'Arial, sans-serif',
         }}
       >
@@ -338,11 +334,11 @@ function StackedInfoBox({
 }) {
   return (
     <div 
-      className="flex flex-col"
+      className="flex flex-col flex-shrink-0"
       style={{ 
         border: `2px solid ${color}`,
         borderRadius: '2px',
-        minWidth: '55px',
+        minWidth: 'clamp(40px, 4.5vw, 55px)',
         maxWidth: '70px',
         overflow: 'hidden',
       }}
@@ -352,14 +348,14 @@ function StackedInfoBox({
         className="flex flex-col items-center justify-center"
         style={{ 
           backgroundColor: COLORS.WHITE,
-          padding: '3px 4px',
+          padding: 'clamp(1px, 0.3vh, 3px) clamp(2px, 0.3vw, 4px)',
         }}
       >
-        <span style={{ fontSize: 'clamp(14px, 1.6vh, 20px)', lineHeight: 1 }}>{topIcon}</span>
+        <span style={{ fontSize: 'clamp(10px, 1.2vh, 20px)', lineHeight: 1 }}>{topIcon}</span>
         <span 
           className="font-bold text-black leading-none"
           style={{ 
-            fontSize: 'clamp(10px, 1.2vh, 14px)',
+            fontSize: 'clamp(8px, 1vh, 14px)',
             fontFamily: 'Arial, sans-serif',
           }}
         >
@@ -375,14 +371,14 @@ function StackedInfoBox({
         className="flex flex-col items-center justify-center"
         style={{ 
           backgroundColor: COLORS.WHITE,
-          padding: '3px 4px',
+          padding: 'clamp(1px, 0.3vh, 3px) clamp(2px, 0.3vw, 4px)',
         }}
       >
-        <span style={{ fontSize: 'clamp(14px, 1.6vh, 20px)', lineHeight: 1 }}>{bottomIcon}</span>
+        <span style={{ fontSize: 'clamp(10px, 1.2vh, 20px)', lineHeight: 1 }}>{bottomIcon}</span>
         <span 
           className="font-bold text-black leading-none"
           style={{ 
-            fontSize: 'clamp(10px, 1.2vh, 14px)',
+            fontSize: 'clamp(8px, 1vh, 14px)',
             fontFamily: 'Arial, sans-serif',
           }}
         >
@@ -397,20 +393,20 @@ function StackedInfoBox({
 function TotalScoreBox({ score, color }: { score: number; color: string }) {
   return (
     <div 
-      className="flex items-center justify-center"
+      className="flex items-center justify-center flex-shrink-0"
       style={{ 
         backgroundColor: color,
         border: `3px solid ${COLORS.WHITE}`,
         borderRadius: '2px',
-        minWidth: '70px',
+        minWidth: 'clamp(50px, 6vw, 70px)',
         maxWidth: '100px',
-        padding: '6px 10px',
+        padding: 'clamp(3px, 0.5vh, 6px) clamp(5px, 0.8vw, 10px)',
       }}
     >
       <span 
         className="font-bold text-white leading-none"
         style={{ 
-          fontSize: 'clamp(28px, 4vh, 48px)',
+          fontSize: 'clamp(20px, 3vh, 48px)',
           fontFamily: 'Arial, sans-serif',
         }}
       >
