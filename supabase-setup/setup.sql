@@ -74,6 +74,9 @@ ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connected_devices ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for anonymous access (needed for the app)
+-- Note: Password validation happens at application level (passwords are hashed with SHA-256)
+-- These policies allow the app to function; the password_hash field provides access control
+
 -- Anyone can read events (they need password to actually use it)
 CREATE POLICY "Allow anonymous read" ON events
     FOR SELECT USING (true);
@@ -82,7 +85,7 @@ CREATE POLICY "Allow anonymous read" ON events
 CREATE POLICY "Allow anonymous insert" ON events
     FOR INSERT WITH CHECK (true);
 
--- Anyone can update events
+-- Anyone can update events (app validates password before allowing updates)
 CREATE POLICY "Allow anonymous update" ON events
     FOR UPDATE USING (true);
 

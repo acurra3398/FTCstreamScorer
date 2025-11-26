@@ -161,6 +161,9 @@ public class WebcamService {
         long frameDelayMs = 1000 / targetFps;
         long lastFrameTime = System.currentTimeMillis();
         
+        // Minimum sleep time to prevent busy-waiting (at least 5ms)
+        final long MIN_SLEEP_MS = 5;
+        
         // Reuse WritableImage for better performance
         WritableImage fxImage = null;
         
@@ -182,8 +185,9 @@ public class WebcamService {
                     lastFrameTime = currentTime;
                 }
                 
-                // Small sleep to prevent busy-waiting while maintaining high FPS
-                long sleepTime = Math.max(1, frameDelayMs - (System.currentTimeMillis() - lastFrameTime));
+                // Calculate remaining time until next frame, with minimum sleep to prevent busy-waiting
+                long timeUntilNextFrame = frameDelayMs - (System.currentTimeMillis() - lastFrameTime);
+                long sleepTime = Math.max(MIN_SLEEP_MS, timeUntilNextFrame);
                 Thread.sleep(sleepTime);
             } catch (Exception e) {
                 e.printStackTrace();

@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.concurrent.*;
+import java.util.prefs.Preferences;
 
 /**
  * Cloud-based score synchronization - Easy setup with just event name + password!
@@ -23,20 +24,27 @@ import java.util.concurrent.*;
  * 3. All devices sync automatically through the cloud
  * 4. Works on any network - no WiFi configuration needed!
  * 
- * SETUP FOR SELF-HOSTING (optional):
- * If you want to host your own backend, see the supabase-setup folder.
- * Otherwise, the app uses the default hosted backend.
+ * CONFIGURATION:
+ * Set environment variables or use the settings dialog:
+ * - SUPABASE_URL: Your Supabase project URL
+ * - SUPABASE_KEY: Your Supabase anon key
+ * 
+ * See supabase-setup/ folder for setup instructions.
  */
 public class CloudSyncService {
     
-    // Default hosted backend - users can self-host if desired
-    // To self-host: Create a Supabase project and update these values
-    private static final String DEFAULT_SUPABASE_URL = "https://your-project.supabase.co";
-    private static final String DEFAULT_SUPABASE_KEY = "your-anon-key";
+    // Environment variable names for configuration
+    private static final String ENV_SUPABASE_URL = "SUPABASE_URL";
+    private static final String ENV_SUPABASE_KEY = "SUPABASE_KEY";
+    
+    // Preferences keys for storing user-configured settings
+    private static final String PREF_SUPABASE_URL = "supabase_url";
+    private static final String PREF_SUPABASE_KEY = "supabase_key";
     
     private final Match match;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
+    private final Preferences prefs;
     
     private String supabaseUrl;
     private String supabaseKey;
@@ -71,13 +79,56 @@ public class CloudSyncService {
             t.setDaemon(true);
             return t;
         });
+        this.prefs = Preferences.userNodeForPackage(CloudSyncService.class);
         
         // Generate unique device ID
         this.deviceId = generateDeviceId();
         
-        // Use default backend
-        this.supabaseUrl = DEFAULT_SUPABASE_URL;
-        this.supabaseKey = DEFAULT_SUPABASE_KEY;
+        // Load configuration from environment variables first, then preferences
+        loadConfiguration();
+    }
+    
+    /**
+     * Load Supabase configuration from environment variables or user preferences.
+     * Priority: Environment variables > User preferences > Empty (unconfigured)
+     */
+    private void loadConfiguration() {
+        // Try environment variables first
+        String envUrl = System.getenv(ENV_SUPABASE_URL);
+        String envKey = System.getenv(ENV_SUPABASE_KEY);
+        
+        if (envUrl != null && !envUrl.isEmpty() && envKey != null && !envKey.isEmpty()) {
+            this.supabaseUrl = envUrl;
+            this.supabaseKey = envKey;
+            System.out.println("Cloud sync: Using configuration from environment variables");
+            return;
+        }
+        
+        // Fall back to user preferences
+        String prefUrl = prefs.get(PREF_SUPABASE_URL, "");
+        String prefKey = prefs.get(PREF_SUPABASE_KEY, "");
+        
+        if (!prefUrl.isEmpty() && !prefKey.isEmpty()) {
+            this.supabaseUrl = prefUrl;
+            this.supabaseKey = prefKey;
+            System.out.println("Cloud sync: Using configuration from user preferences");
+            return;
+        }
+        
+        // Not configured
+        this.supabaseUrl = "";
+        this.supabaseKey = "";
+        System.out.println("Cloud sync: Not configured - set SUPABASE_URL and SUPABASE_KEY environment variables");
+    }
+    
+    /**
+     * Save user-provided configuration to preferences
+     */
+    public void saveConfiguration(String url, String key) {
+        this.supabaseUrl = url.trim();
+        this.supabaseKey = key.trim();
+        prefs.put(PREF_SUPABASE_URL, this.supabaseUrl);
+        prefs.put(PREF_SUPABASE_KEY, this.supabaseKey);
     }
     
     /**
@@ -93,9 +144,14 @@ public class CloudSyncService {
      */
     public boolean isBackendConfigured() {
         return supabaseUrl != null && !supabaseUrl.isEmpty() 
-            && !supabaseUrl.equals("https://your-project.supabase.co")
-            && supabaseKey != null && !supabaseKey.isEmpty()
-            && !supabaseKey.equals("your-anon-key");
+            && supabaseKey != null && !supabaseKey.isEmpty();
+    }
+    
+    /**
+     * Get the current Supabase URL (for display in settings)
+     */
+    public String getSupabaseUrl() {
+        return supabaseUrl != null ? supabaseUrl : "";
     }
     
     /**
