@@ -12,6 +12,7 @@ import {
   BaseStatus,
   SupabaseNotConfiguredError,
   DatabaseConnectionError,
+  ForbiddenApiKeyError,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
@@ -33,6 +34,7 @@ function ScoringPageContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [errorType, setErrorType] = useState<'connection' | 'configuration'>('connection');
   const [lastSync, setLastSync] = useState('');
   
   const [redScore, setRedScore] = useState<DecodeScore>(createDefaultScore());
@@ -81,11 +83,28 @@ function ScoringPageContent() {
         setMatchNumber(history.length + 1);
         
       } catch (err) {
-        if (err instanceof SupabaseNotConfiguredError) {
+        if (err instanceof ForbiddenApiKeyError) {
+          setErrorType('configuration');
+          setError(
+            'A secret API key is being used in the browser. ' +
+            'Please check your environment configuration. Use the anon/public key for NEXT_PUBLIC_SUPABASE_ANON_KEY, ' +
+            'not the service role key. Contact your administrator to fix this security issue.'
+          );
+        } else if (err instanceof SupabaseNotConfiguredError) {
+          setErrorType('configuration');
           setError('Database not configured. Please set up Supabase backend first.');
         } else if (err instanceof DatabaseConnectionError) {
+          setErrorType('connection');
           setError('Connection error: ' + err.message);
+        } else if (err instanceof Error && err.message.includes('Forbidden')) {
+          // Catch any other forbidden errors from Supabase directly
+          setErrorType('configuration');
+          setError(
+            'Forbidden access detected. This usually means a service role key is being used ' +
+            'instead of the anon/public key. Please check your NEXT_PUBLIC_SUPABASE_ANON_KEY configuration.'
+          );
         } else {
+          setErrorType('connection');
           setError('Connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
         }
       } finally {
@@ -186,14 +205,44 @@ function ScoringPageContent() {
   }
 
   if (error) {
+    const getErrorTitle = () => {
+      switch (errorType) {
+        case 'configuration':
+          return '⚠️ Configuration Error';
+        default:
+          return '❌ Connection Error';
+      }
+    };
+
+    const getErrorColor = () => {
+      switch (errorType) {
+        case 'configuration':
+          return 'bg-orange-800';
+        default:
+          return 'bg-red-900';
+      }
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-        <div className="bg-red-900 text-white p-6 rounded-lg max-w-md text-center">
-          <h2 className="text-2xl font-bold mb-4">Connection Error</h2>
-          <p className="mb-4">{error}</p>
+        <div className={`${getErrorColor()} text-white p-6 rounded-lg max-w-lg text-center`}>
+          <h2 className="text-2xl font-bold mb-4">{getErrorTitle()}</h2>
+          <p className="mb-4 text-left">{error}</p>
+          {errorType === 'configuration' && (
+            <div className="bg-black/30 p-3 rounded text-sm text-left mb-4">
+              <p className="font-bold mb-2">How to fix:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Go to your Supabase project dashboard</li>
+                <li>Navigate to Project Settings → API</li>
+                <li>Copy the <strong>anon (public)</strong> key</li>
+                <li>Set it as NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+                <li>Redeploy your application</li>
+              </ol>
+            </div>
+          )}
           <button
             onClick={() => window.location.href = '/'}
-            className="bg-white text-red-900 px-6 py-2 rounded font-bold"
+            className="bg-white text-gray-900 px-6 py-2 rounded font-bold"
           >
             Go Back
           </button>
