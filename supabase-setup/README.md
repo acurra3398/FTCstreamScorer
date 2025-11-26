@@ -33,6 +33,7 @@ This guide helps you set up your own cloud sync backend using Supabase (free tie
 - `migration-timer-livestream.sql` - Adds timer and livestream fields
 - `migration-audio-streaming.sql` - Adds audio streaming support  
 - `migration-scores-timer-sync.sql` - Adds score submission flags and timer sync (required for v1.1+)
+- `migration-audio-ice-candidates-display.sql` - Adds audio ICE candidates from display (required for proper audio WebRTC)
 
 ### Step 3: Get Your API Credentials
 

@@ -373,9 +373,6 @@ function HostPageContent() {
         });
         
         // Handle ICE candidates
-        // Note: ICE candidates are sent immediately as they're gathered.
-        // In a production system, you might want to batch these or use 
-        // Supabase Realtime for more efficient signaling.
         const iceCandidates: RTCIceCandidate[] = [];
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
@@ -387,6 +384,15 @@ function HostPageContent() {
           }
         };
         
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'connected') {
+            setAudioStatus('🎙️ Audio streaming - Connected to display!');
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            setAudioStatus('⚠️ Audio connection lost');
+          }
+        };
+        
         // Create offer
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -395,9 +401,70 @@ function HostPageContent() {
         await hostActionAPI(eventName, password, 'setAudioState', { 
           audioEnabled: true,
           audioSdpOffer: JSON.stringify(offer),
+          audioSdpAnswer: '', // Clear any old answer
+          audioIceCandidatesDisplay: '[]', // Clear any old display candidates
         });
         
-        setAudioStatus('Audio streaming active - Waiting for display to connect...');
+        setAudioStatus('🎙️ Waiting for display to connect...');
+        
+        // Poll for display's answer with timeout
+        let pollAttempts = 0;
+        const maxPollAttempts = 30; // 30 seconds timeout
+        const pollForAnswer = setInterval(async () => {
+          pollAttempts++;
+          
+          // Timeout after 30 seconds
+          if (pollAttempts > maxPollAttempts) {
+            clearInterval(pollForAnswer);
+            setAudioStatus('⏱️ Connection timeout - Display may not be connected');
+            return;
+          }
+          
+          try {
+            const data = await fetchEventAPI(eventName);
+            if (data?.audio_sdp_answer && pc.signalingState === 'have-local-offer') {
+              // Display has sent an answer
+              try {
+                const answer = JSON.parse(data.audio_sdp_answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                setAudioStatus('🎙️ Audio streaming - LIVE');
+                
+                // Add display's ICE candidates
+                if (data.audio_ice_candidates_display) {
+                  try {
+                    const displayCandidates = JSON.parse(data.audio_ice_candidates_display);
+                    for (const candidate of displayCandidates) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                      } catch (e) {
+                        console.error('Error adding display audio ICE candidate:', e);
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error parsing display audio ICE candidates:', e);
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing audio SDP answer:', e);
+              }
+              
+              clearInterval(pollForAnswer);
+            }
+          } catch (err) {
+            console.error('Error polling for audio answer:', err);
+          }
+        }, 1000);
+        
+        // Store interval ID for cleanup
+        const currentPollRef = { interval: pollForAnswer };
+        
+        // Cleanup on stop - store reference in closure for the stop handler
+        const originalClose = pc.close.bind(pc);
+        pc.close = () => {
+          clearInterval(currentPollRef.interval);
+          originalClose();
+        };
+        
       } catch (err) {
         console.error('Error starting audio:', err);
         setAudioStatus('Failed to start audio: ' + (err instanceof Error ? err.message : 'Unknown error'));

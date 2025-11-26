@@ -53,6 +53,7 @@ export interface EventData {
   audio_ice_candidates?: string;
   audio_sdp_offer?: string;
   audio_sdp_answer?: string;
+  audio_ice_candidates_display?: string;
   
   // Video streaming from host camera (WebRTC signaling)
   video_enabled?: boolean;
