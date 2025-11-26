@@ -70,12 +70,10 @@ export default function ScoreBar({
     }
   };
 
-  // Calculate responsive sizes based on overlay height
-  // Overlay height is 16.88% of container, using CSS calc for responsiveness
+  // Responsive overlay height: 16.88% of viewport height (131px at 776px baseline)
+  // Using clamp for responsive sizing with min/max bounds
   const overlayStyle: React.CSSProperties = {
-    height: '131px', // Fixed height matching reference (will be made responsive with container queries)
-    minHeight: '100px',
-    maxHeight: '150px',
+    height: 'clamp(100px, 16.88vh, 150px)',
     backgroundColor: COLORS.BLACK,
     display: 'flex',
     alignItems: 'stretch',
