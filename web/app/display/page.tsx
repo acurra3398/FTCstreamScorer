@@ -383,6 +383,15 @@ function DisplayPageContent() {
     };
   }, [eventData?.video_enabled, eventData?.video_sdp_offer, eventData?.video_ice_candidates_host, eventName]);
   
+  // Effect to attach video stream to video element when both are available
+  // This handles the race condition where the stream arrives before the video element is mounted
+  useEffect(() => {
+    if (hostVideoStream && hostVideoRef.current) {
+      hostVideoRef.current.srcObject = hostVideoStream;
+      hostVideoRef.current.play().catch(console.error);
+    }
+  }, [hostVideoStream]);
+  
   // Determine winner and show video when scores are released
   useEffect(() => {
     if (!eventData || eventData.match_state !== 'SCORES_RELEASED') {
