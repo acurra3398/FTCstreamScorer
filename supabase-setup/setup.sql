@@ -64,14 +64,46 @@ CREATE TABLE IF NOT EXISTS connected_devices (
     UNIQUE(event_name, device_id)
 );
 
+-- Table for recording match history
+CREATE TABLE IF NOT EXISTS match_records (
+    id BIGSERIAL PRIMARY KEY,
+    event_name TEXT NOT NULL,
+    match_number INTEGER NOT NULL,
+    recorded_at TIMESTAMPTZ DEFAULT NOW(),
+    motif TEXT DEFAULT 'PPG',
+    
+    -- Team info
+    red_team1 TEXT DEFAULT '',
+    red_team2 TEXT DEFAULT '',
+    blue_team1 TEXT DEFAULT '',
+    blue_team2 TEXT DEFAULT '',
+    
+    -- Final scores
+    red_total_score INTEGER NOT NULL,
+    blue_total_score INTEGER NOT NULL,
+    
+    -- Detailed scoring data (JSON)
+    red_score_data TEXT,
+    blue_score_data TEXT,
+    
+    -- Winner
+    winner TEXT NOT NULL, -- 'RED', 'BLUE', or 'TIE'
+    
+    -- Unique constraint on event + match number
+    UNIQUE(event_name, match_number)
+);
+
 -- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_events_name ON events(event_name);
 CREATE INDEX IF NOT EXISTS idx_devices_event ON connected_devices(event_name);
 CREATE INDEX IF NOT EXISTS idx_devices_seen ON connected_devices(last_seen);
+CREATE INDEX IF NOT EXISTS idx_match_records_event ON match_records(event_name);
+CREATE INDEX IF NOT EXISTS idx_match_records_number ON match_records(match_number);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connected_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE match_records ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for anonymous access (needed for the app)
 -- Note: Password validation happens at application level (passwords are hashed with SHA-256)
@@ -102,6 +134,19 @@ CREATE POLICY "Allow anonymous update devices" ON connected_devices
 CREATE POLICY "Allow anonymous delete devices" ON connected_devices
     FOR DELETE USING (true);
 
+-- Match records policies
+CREATE POLICY "Allow anonymous read match_records" ON match_records
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow anonymous insert match_records" ON match_records
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous update match_records" ON match_records
+    FOR UPDATE USING (true);
+
+CREATE POLICY "Allow anonymous delete match_records" ON match_records
+    FOR DELETE USING (true);
+
 -- Function to auto-update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -126,4 +171,5 @@ CREATE TRIGGER update_events_updated_at
 -- Grant permissions
 GRANT ALL ON events TO anon;
 GRANT ALL ON connected_devices TO anon;
+GRANT ALL ON match_records TO anon;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;

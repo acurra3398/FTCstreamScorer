@@ -33,6 +33,26 @@ If installers aren't available for your platform, you can run the JAR file direc
 
 ---
 
+## 📱 Web Interface for Referees (NEW!)
+
+**Score matches from iPads and tablets!** The web interface allows referees to join events and score from any device with a web browser.
+
+### Deploy to Vercel (Recommended)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/FTCstreamScorer&root-directory=web)
+
+### How It Works
+
+1. **Host** creates an event in the desktop app with a name and password
+2. **Referees** open the web interface on their iPads
+3. **Join** the event by entering the event name and password
+4. **Score** for their assigned alliance (Red or Blue)
+5. **Sync** happens automatically in real-time!
+
+See the [web/README.md](web/README.md) for detailed setup instructions.
+
+---
+
 ## 🎮 How to Use
 
 ### Getting Started
@@ -69,6 +89,8 @@ If installers aren't available for your platform, you can run the JAR file direc
 | 💾 **Works Offline** | No internet or login required |
 | 🎬 **Winner Videos** | Play celebration videos with audio before final results |
 | 📡 **Wireless Sync** | Multiple devices can score together |
+| 📱 **Web Interface** | Referees can score from iPads/tablets |
+| 📊 **Match Recording** | Record and view match history |
 
 ---
 

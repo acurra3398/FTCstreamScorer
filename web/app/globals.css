@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --red-primary: rgb(211, 47, 47);
+  --red-dark: rgb(198, 40, 40);
+  --blue-primary: rgb(25, 118, 210);
+  --blue-dark: rgb(21, 101, 192);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Touch-friendly button styles */
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent text selection on touch devices */
+.no-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Large touch targets for tablets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Score display animation */
+@keyframes scoreUpdate {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.score-update {
+  animation: scoreUpdate 0.2s ease-in-out;
+}
+
+/* Winner highlight glow */
+.winner-glow {
+  box-shadow: 0 0 20px 5px gold;
+  animation: glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 10px 2px gold; }
+  to { box-shadow: 0 0 25px 8px gold; }
+}
+
+/* Mobile-first responsive scoring buttons */
+@media (max-width: 768px) {
+  .scoring-button {
+    font-size: 1.5rem;
+    padding: 1rem;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .scoring-button {
+    font-size: 1.25rem;
+    padding: 0.75rem 1rem;
+  }
+}
