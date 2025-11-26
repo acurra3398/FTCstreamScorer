@@ -246,7 +246,7 @@ export async function createEvent(
 ): Promise<{ success: boolean; message: string }> {
   const client = getSupabaseClient();
   if (!client) {
-    return { success: false, message: 'Supabase not configured. Please set up the backend.' };
+    return { success: false, message: 'Database not configured. Please set up Supabase backend first.' };
   }
   
   const normalizedName = eventName.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -321,7 +321,7 @@ export async function createEvent(
 // Custom error class for Supabase not configured
 export class SupabaseNotConfiguredError extends Error {
   constructor() {
-    super('Supabase not configured. Please set up the backend.');
+    super('Database not configured. Please set up Supabase backend first.');
     this.name = 'SupabaseNotConfiguredError';
   }
 }

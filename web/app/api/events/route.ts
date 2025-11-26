@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const client = getServerSupabaseClient();
     if (!client) {
       return NextResponse.json(
-        { success: false, message: 'Supabase not configured. Please set up the backend.' },
+        { success: false, message: 'Database not configured. Please set up Supabase backend first.' },
         { status: 500 }
       );
     }
