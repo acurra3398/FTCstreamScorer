@@ -257,8 +257,21 @@ Platform-specific installer scripts are in the `scripts/` folder:
 - JDK 14+ (for jpackage)
 - WSL with Ubuntu (for Linux builds on Windows)
 - A Mac computer (for macOS builds)
+- Inno Setup 6 (for Windows .exe installer)
 
-See `scripts/github-actions-example.yml` for automated CI/CD builds.
+### Automated Installer Updates
+
+The Windows `.exe` installer in `Output/FTCStreamScorer-Setup.exe` is automatically updated via GitHub Actions whenever changes are pushed to the `main` branch. The workflow:
+
+1. Builds the Java application with Maven
+2. Creates the Windows `.exe` installer using Inno Setup
+3. Commits and pushes the updated installer to the `Output/` folder
+
+This ensures the downloadable installer is always up-to-date with the latest code changes.
+
+You can also manually trigger a build from the GitHub Actions tab using the "workflow_dispatch" option.
+
+See `.github/workflows/main.yml` for the full CI/CD configuration.
 
 ### Project Structure
 

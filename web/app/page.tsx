@@ -3,12 +3,16 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { COLORS } from '@/lib/constants';
+import { createEvent } from '@/lib/supabase';
 
 export default function HomePage() {
+  const [mode, setMode] = useState<'join' | 'create'>('join');
   const [eventName, setEventName] = useState('');
   const [password, setPassword] = useState('');
   const [alliance, setAlliance] = useState<'RED' | 'BLUE'>('RED');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +33,35 @@ export default function HomePage() {
     window.location.href = `/score?${params.toString()}`;
   };
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventName.trim()) {
+      setError('Please enter an event name');
+      return;
+    }
+    if (!password.trim() || password.length < 4) {
+      setError('Password must be at least 4 characters');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await createEvent(eventName, password);
+      if (result.success) {
+        setSuccess(result.message);
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError('Failed to create event: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center p-4">
       {/* Header */}
@@ -40,13 +73,37 @@ export default function HomePage() {
         <p className="text-gray-400 mt-2">Web-based referee scoring for iPads & tablets</p>
       </div>
 
-      {/* Join Event Form */}
+      {/* Mode Toggle */}
+      <div className="bg-gray-700 rounded-lg p-1 mb-6 flex">
+        <button
+          onClick={() => { setMode('join'); setError(''); setSuccess(''); }}
+          className={`px-6 py-2 rounded-md font-bold transition-all ${
+            mode === 'join' 
+              ? 'bg-blue-600 text-white' 
+              : 'text-gray-300 hover:text-white'
+          }`}
+        >
+          Join Event
+        </button>
+        <button
+          onClick={() => { setMode('create'); setError(''); setSuccess(''); }}
+          className={`px-6 py-2 rounded-md font-bold transition-all ${
+            mode === 'create' 
+              ? 'bg-green-600 text-white' 
+              : 'text-gray-300 hover:text-white'
+          }`}
+        >
+          Create Event
+        </button>
+      </div>
+
+      {/* Form */}
       <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Join Event
+          {mode === 'join' ? 'Join Event' : 'Create New Event'}
         </h2>
 
-        <form onSubmit={handleJoin} className="space-y-4">
+        <form onSubmit={mode === 'join' ? handleJoin : handleCreate} className="space-y-4">
           {/* Event Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -58,6 +115,7 @@ export default function HomePage() {
               onChange={(e) => {
                 setEventName(e.target.value);
                 setError('');
+                setSuccess('');
               }}
               placeholder="e.g., SCRIMMAGE_2024"
               className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:border-blue-500 focus:outline-none"
@@ -67,7 +125,7 @@ export default function HomePage() {
           {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+              Password {mode === 'create' && <span className="text-gray-500">(min 4 characters)</span>}
             </label>
             <input
               type="password"
@@ -75,50 +133,53 @@ export default function HomePage() {
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError('');
+                setSuccess('');
               }}
-              placeholder="Enter event password"
+              placeholder={mode === 'create' ? 'Create a password' : 'Enter event password'}
               className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:border-blue-500 focus:outline-none"
             />
           </div>
 
-          {/* Alliance Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Alliance to Score
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setAlliance('RED')}
-                className={`p-4 rounded-lg font-bold text-xl transition-all ${
-                  alliance === 'RED'
-                    ? 'ring-4 ring-red-300 scale-105'
-                    : 'opacity-70 hover:opacity-100'
-                }`}
-                style={{ 
-                  backgroundColor: COLORS.RED_PRIMARY,
-                  color: 'white'
-                }}
-              >
-                🔴 RED
-              </button>
-              <button
-                type="button"
-                onClick={() => setAlliance('BLUE')}
-                className={`p-4 rounded-lg font-bold text-xl transition-all ${
-                  alliance === 'BLUE'
-                    ? 'ring-4 ring-blue-300 scale-105'
-                    : 'opacity-70 hover:opacity-100'
-                }`}
-                style={{ 
-                  backgroundColor: COLORS.BLUE_PRIMARY,
-                  color: 'white'
-                }}
-              >
-                🔵 BLUE
-              </button>
+          {/* Alliance Selection - Only for Join mode */}
+          {mode === 'join' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Alliance to Score
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAlliance('RED')}
+                  className={`p-4 rounded-lg font-bold text-xl transition-all ${
+                    alliance === 'RED'
+                      ? 'ring-4 ring-red-300 scale-105'
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={{ 
+                    backgroundColor: COLORS.RED_PRIMARY,
+                    color: 'white'
+                  }}
+                >
+                  🔴 RED
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlliance('BLUE')}
+                  className={`p-4 rounded-lg font-bold text-xl transition-all ${
+                    alliance === 'BLUE'
+                      ? 'ring-4 ring-blue-300 scale-105'
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={{ 
+                    backgroundColor: COLORS.BLUE_PRIMARY,
+                    color: 'white'
+                  }}
+                >
+                  🔵 BLUE
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -127,14 +188,43 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* Success Message */}
+          {success && (
+            <div className="bg-green-100 text-green-700 p-3 rounded-lg text-center whitespace-pre-line">
+              {success}
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full p-4 bg-green-600 text-white rounded-lg font-bold text-xl hover:bg-green-700 transition-colors"
+            disabled={isLoading}
+            className={`w-full p-4 rounded-lg font-bold text-xl transition-colors ${
+              mode === 'join'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Join & Start Scoring
+            {isLoading 
+              ? 'Creating...' 
+              : mode === 'join' 
+                ? 'Join & Start Scoring' 
+                : 'Create Event'
+            }
           </button>
         </form>
+
+        {/* Quick switch after creating */}
+        {mode === 'create' && success && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => { setMode('join'); setSuccess(''); }}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              → Now join your event to start scoring
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Display Only Link */}
@@ -150,8 +240,10 @@ export default function HomePage() {
       {/* Instructions */}
       <div className="mt-8 text-center text-gray-400 max-w-md">
         <p className="text-sm">
-          <strong>How it works:</strong> The host creates an event in the desktop app, 
-          then referees join using their iPads or tablets to score for their assigned alliance.
+          {mode === 'join' 
+            ? <><strong>How it works:</strong> The host creates an event, then referees join using their iPads or tablets to score for their assigned alliance.</>
+            : <><strong>Creating an event:</strong> Choose a unique name and password. Share these with your referees so they can join and score.</>
+          }
         </p>
       </div>
 

@@ -9,6 +9,7 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import org.ftc.scorer.model.DecodeScore;
 import org.ftc.scorer.model.Match;
+import org.ftc.scorer.service.CloudSyncService;
 import org.ftc.scorer.service.MatchTimer;
 import org.ftc.scorer.service.SyncServer;
 import org.ftc.scorer.webcam.WebcamService;
@@ -27,6 +28,7 @@ public class ControlWindow {
     private final StreamOutputWindow streamWindow;
     private final org.ftc.scorer.service.AudioService audioService;
     private final SyncServer syncServer;
+    private final CloudSyncService cloudSyncService;
     
     // Team input - alliances have 2 teams each
     private TextField redTeam1Field;
@@ -61,6 +63,11 @@ public class ControlWindow {
     private Button syncServerButton;
     private Label syncStatusLabel;
     
+    // Cloud sync controls
+    private Button createEventButton;
+    private Button joinEventButton;
+    private Label cloudStatusLabel;
+    
     // Scroll speed multiplier constant
     private static final double SCROLL_SPEED_MULTIPLIER = 3.0;
     
@@ -71,6 +78,7 @@ public class ControlWindow {
         this.streamWindow = streamWindow;
         this.audioService = audioService;
         this.syncServer = new SyncServer(match);
+        this.cloudSyncService = new CloudSyncService(match);
         this.stage = new Stage();
         
         initializeUI();
@@ -78,6 +86,10 @@ public class ControlWindow {
         
         // Set up sync server callback to update spinners when remote device sends scores
         syncServer.setOnScoreUpdate(this::refreshControlsFromModel);
+        
+        // Set up cloud sync callbacks
+        cloudSyncService.setOnScoreUpdate(this::refreshControlsFromModel);
+        cloudSyncService.setOnConnectionChange(this::updateCloudSyncUI);
     }
     
     private void initializeUI() {
@@ -229,7 +241,7 @@ public class ControlWindow {
             }
         });
         
-        // Sync server controls
+        // Sync server controls (Local WiFi)
         syncServerButton = new Button("Start Sync Server");
         syncServerButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
         syncServerButton.setOnAction(e -> toggleSyncServer());
@@ -241,7 +253,27 @@ public class ControlWindow {
         syncBox.setAlignment(Pos.CENTER);
         syncBox.getChildren().addAll(syncServerButton, syncStatusLabel);
         
-        configRow.getChildren().addAll(motifLabel, motifSelector, randomizeMotifButton, webcamLabel, webcamSelector, syncBox);
+        // Cloud sync controls (Scrimmage/Event)
+        createEventButton = new Button("☁ Create Event");
+        createEventButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+        createEventButton.setOnAction(e -> showCreateEventDialog());
+        
+        joinEventButton = new Button("☁ Join Event");
+        joinEventButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+        joinEventButton.setOnAction(e -> showJoinEventDialog());
+        
+        cloudStatusLabel = new Label("Cloud: Not connected");
+        cloudStatusLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #666;");
+        
+        HBox cloudButtons = new HBox(5);
+        cloudButtons.setAlignment(Pos.CENTER);
+        cloudButtons.getChildren().addAll(createEventButton, joinEventButton);
+        
+        VBox cloudBox = new VBox(3);
+        cloudBox.setAlignment(Pos.CENTER);
+        cloudBox.getChildren().addAll(cloudButtons, cloudStatusLabel);
+        
+        configRow.getChildren().addAll(motifLabel, motifSelector, randomizeMotifButton, webcamLabel, webcamSelector, syncBox, cloudBox);
         
         // Match control buttons
         startButton = new Button("Start Match");
@@ -1197,5 +1229,185 @@ public class ControlWindow {
      */
     public SyncServer getSyncServer() {
         return syncServer;
+    }
+    
+    /**
+     * Show dialog to create a new cloud event (scrimmage)
+     */
+    private void showCreateEventDialog() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Create Event / Scrimmage");
+        dialog.setHeaderText("Create a new event for cloud scoring");
+        
+        // Set up buttons
+        ButtonType createButtonType = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
+        
+        // Create form
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+        
+        TextField eventNameField = new TextField();
+        eventNameField.setPromptText("e.g., SCRIMMAGE_2024");
+        eventNameField.setPrefWidth(250);
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("At least 4 characters");
+        
+        grid.add(new Label("Event Name:"), 0, 0);
+        grid.add(eventNameField, 1, 0);
+        grid.add(new Label("Password:"), 0, 1);
+        grid.add(passwordField, 1, 1);
+        
+        Label infoLabel = new Label("Share the event name and password with\nyour referees so they can join and score.");
+        infoLabel.setStyle("-fx-text-fill: #666; -fx-font-size: 11;");
+        grid.add(infoLabel, 0, 2, 2, 1);
+        
+        dialog.getDialogPane().setContent(grid);
+        
+        // Request focus on the event name field
+        javafx.application.Platform.runLater(eventNameField::requestFocus);
+        
+        dialog.showAndWait().ifPresent(buttonType -> {
+            if (buttonType == createButtonType) {
+                String eventName = eventNameField.getText().trim();
+                String password = passwordField.getText();
+                
+                if (eventName.isEmpty()) {
+                    showAlert(Alert.AlertType.ERROR, "Error", "Please enter an event name");
+                    return;
+                }
+                if (password.length() < 4) {
+                    showAlert(Alert.AlertType.ERROR, "Error", "Password must be at least 4 characters");
+                    return;
+                }
+                
+                // Create the event
+                cloudSyncService.createEvent(eventName, password).thenAccept(result -> {
+                    javafx.application.Platform.runLater(() -> {
+                        if (result.startsWith("✓")) {
+                            showAlert(Alert.AlertType.INFORMATION, "Event Created", result);
+                            updateCloudSyncUI();
+                        } else {
+                            showAlert(Alert.AlertType.ERROR, "Error", result);
+                        }
+                    });
+                });
+            }
+        });
+    }
+    
+    /**
+     * Show dialog to join an existing cloud event
+     */
+    private void showJoinEventDialog() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Join Event / Scrimmage");
+        dialog.setHeaderText("Join an existing event to score");
+        
+        // Set up buttons
+        ButtonType joinButtonType = new ButtonType("Join", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(joinButtonType, ButtonType.CANCEL);
+        
+        // Create form
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+        
+        TextField eventNameField = new TextField();
+        eventNameField.setPromptText("Event name from host");
+        eventNameField.setPrefWidth(250);
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Event password");
+        
+        ComboBox<String> roleComboBox = new ComboBox<>();
+        roleComboBox.getItems().addAll("RED", "BLUE");
+        roleComboBox.setValue("RED");
+        
+        grid.add(new Label("Event Name:"), 0, 0);
+        grid.add(eventNameField, 1, 0);
+        grid.add(new Label("Password:"), 0, 1);
+        grid.add(passwordField, 1, 1);
+        grid.add(new Label("Score for:"), 0, 2);
+        grid.add(roleComboBox, 1, 2);
+        
+        dialog.getDialogPane().setContent(grid);
+        
+        javafx.application.Platform.runLater(eventNameField::requestFocus);
+        
+        dialog.showAndWait().ifPresent(buttonType -> {
+            if (buttonType == joinButtonType) {
+                String eventName = eventNameField.getText().trim();
+                String password = passwordField.getText();
+                String role = roleComboBox.getValue();
+                
+                if (eventName.isEmpty()) {
+                    showAlert(Alert.AlertType.ERROR, "Error", "Please enter the event name");
+                    return;
+                }
+                if (password.isEmpty()) {
+                    showAlert(Alert.AlertType.ERROR, "Error", "Please enter the password");
+                    return;
+                }
+                
+                // Join the event
+                cloudSyncService.joinEvent(eventName, password, role).thenAccept(result -> {
+                    javafx.application.Platform.runLater(() -> {
+                        if (result.startsWith("✓")) {
+                            showAlert(Alert.AlertType.INFORMATION, "Joined Event", result);
+                            updateCloudSyncUI();
+                        } else {
+                            showAlert(Alert.AlertType.ERROR, "Error", result);
+                        }
+                    });
+                });
+            }
+        });
+    }
+    
+    /**
+     * Update cloud sync UI based on connection state
+     */
+    private void updateCloudSyncUI() {
+        if (cloudSyncService.isConnected()) {
+            String role = cloudSyncService.getDeviceRole();
+            String event = cloudSyncService.getEventName();
+            cloudStatusLabel.setText("☁ " + event + " (" + role + ")");
+            cloudStatusLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #4CAF50; -fx-font-weight: bold;");
+            
+            // Change buttons to show disconnect option
+            createEventButton.setText("☁ Disconnect");
+            createEventButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+            createEventButton.setOnAction(e -> {
+                cloudSyncService.disconnect();
+                updateCloudSyncUI();
+            });
+            
+            joinEventButton.setVisible(false);
+        } else {
+            cloudStatusLabel.setText("Cloud: Not connected");
+            cloudStatusLabel.setStyle("-fx-font-size: 11; -fx-text-fill: #666;");
+            
+            createEventButton.setText("☁ Create Event");
+            createEventButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 5 15;");
+            createEventButton.setOnAction(e -> showCreateEventDialog());
+            
+            joinEventButton.setVisible(true);
+        }
+    }
+    
+    /**
+     * Helper to show alerts
+     */
+    private void showAlert(Alert.AlertType type, String title, String content) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
     }
 }

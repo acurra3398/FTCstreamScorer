@@ -1,4 +1,19 @@
-; Inno Setup script for FTC Stream Scorer
+; ============================================================================
+; Inno Setup Script for FTC Stream Scorer
+; ============================================================================
+; 
+; INSTRUCTIONS:
+; 1. Download and install Inno Setup from https://jrsoftware.org/isinfo.php
+; 2. Place StreamScorer.exe in the same folder as this script
+; 3. Open this file in Inno Setup Compiler
+; 4. Click Build > Compile (or press Ctrl+F9)
+; 5. The installer will be created in the Output/ folder
+;
+; To customize for your own project:
+; - Change MyAppName, MyAppVersion, MyAppPublisher, MyAppURL below
+; - Generate a new unique AppId (Tools > Generate GUID in Inno Setup)
+; - Update MyAppExeName to match your executable filename
+; ============================================================================
 
 #define MyAppName "FTC Stream Scorer"
 #define MyAppVersion "1.1"
@@ -10,7 +25,8 @@
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
 
 [Setup]
-; Unique ID for your app (don’t change once you ship)
+; Unique ID for your app (generate a new one for your own project)
+; Use Tools > Generate GUID in Inno Setup to create a new one
 AppId={{35292DA2-CF8B-4DF4-AF6D-0DF0CBA6849F}
 
 AppName={#MyAppName}
@@ -36,7 +52,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
-; Name of the built installer EXE
+; Output directory and filename for the built installer
+OutputDir=Output
 OutputBaseFilename=FTCStreamScorer-Setup
 
 ; Better compression and modern wizard UI
