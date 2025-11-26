@@ -118,9 +118,19 @@ export async function PATCH(
       case 'updateTimerState':
         if (data?.timerRunning !== undefined) updateData.timer_running = data.timerRunning;
         if (data?.timerPaused !== undefined) updateData.timer_paused = data.timerPaused;
-        if (data?.timerSecondsRemaining !== undefined) updateData.timer_seconds_remaining = data.timerSecondsRemaining;
+        if (data?.timerSecondsRemaining !== undefined) {
+          updateData.timer_seconds_remaining = data.timerSecondsRemaining;
+          // Always update the sync timestamp when seconds remaining changes
+          updateData.timer_last_sync = new Date().toISOString();
+        }
         if (data?.timerStartedAt !== undefined) updateData.timer_started_at = data.timerStartedAt;
         if (data?.timerPausedAt !== undefined) updateData.timer_paused_at = data.timerPausedAt;
+        if (data?.countdownNumber !== undefined) updateData.countdown_number = data.countdownNumber;
+        break;
+
+      case 'setCountdown':
+        // Set the pre-match countdown number (5, 4, 3, 2, 1, or null)
+        updateData.countdown_number = data?.countdownNumber ?? null;
         break;
 
       case 'resetScores':
@@ -158,6 +168,8 @@ export async function PATCH(
           timer_seconds_remaining: 30,
           timer_started_at: null,
           timer_paused_at: null,
+          timer_last_sync: new Date().toISOString(),
+          countdown_number: null,
         };
         break;
 

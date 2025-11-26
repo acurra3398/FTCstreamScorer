@@ -60,6 +60,21 @@ async function getMatchHistoryAPI(eventName: string): Promise<MatchRecord[]> {
   }
 }
 
+async function recordMatchAPI(eventName: string, matchNumber: number): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchNumber }),
+    });
+    const result = await response.json();
+    return { success: result.success === true, message: result.message || 'Unknown error' };
+  } catch (error) {
+    console.error('Error recording match:', error);
+    return { success: false, message: error instanceof Error ? error.message : 'Network error' };
+  }
+}
+
 async function hostActionAPI(
   eventName: string, 
   password: string, 
@@ -147,6 +162,9 @@ function HostPageContent() {
   const [redTeam2, setRedTeam2] = useState('');
   const [blueTeam1, setBlueTeam1] = useState('');
   const [blueTeam2, setBlueTeam2] = useState('');
+  
+  // Livestream URL for display camera mode
+  const [livestreamUrl, setLivestreamUrl] = useState('');
   
   // Camera state
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
@@ -261,6 +279,7 @@ function HostPageContent() {
         setRedTeam2(data.red_team2 || '');
         setBlueTeam1(data.blue_team1 || '');
         setBlueTeam2(data.blue_team2 || '');
+        setLivestreamUrl(data.livestream_url || '');
         setMatchPhase(data.match_state || 'NOT_STARTED');
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
@@ -299,7 +318,7 @@ function HostPageContent() {
     return () => clearInterval(interval);
   }, [isConnected, eventName]);
 
-  // Timer tick function
+  // Timer tick function - syncs timer state to database for all clients
   const tick = useCallback(() => {
     if (waitingForSound.current) return;
     
@@ -308,6 +327,12 @@ function HostPageContent() {
     if (matchPhase === 'AUTONOMOUS') {
       const remaining = MATCH_TIMING.AUTO_DURATION - totalElapsed - 1;
       setSecondsRemaining(remaining);
+      
+      // Sync timer to database
+      hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerSecondsRemaining: remaining,
+        timerRunning: true,
+      }).catch(console.error);
       
       if (remaining <= 0 && !waitingForSound.current) {
         waitingForSound.current = true;
@@ -318,21 +343,37 @@ function HostPageContent() {
           waitingForSound.current = false;
           playAudio('transition');
           hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' }).catch(console.error);
+          hostActionAPI(eventName, password, 'updateTimerState', { 
+            timerSecondsRemaining: MATCH_TIMING.TRANSITION_DURATION,
+          }).catch(console.error);
         });
       }
     } else if (matchPhase === 'TRANSITION') {
       const remaining = MATCH_TIMING.TRANSITION_DURATION - totalElapsed - 1;
       setSecondsRemaining(remaining);
       
+      // Sync timer to database
+      hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerSecondsRemaining: remaining,
+      }).catch(console.error);
+      
       if (remaining <= 0) {
         setMatchPhase('TELEOP');
         setTotalElapsed(0);
         setSecondsRemaining(MATCH_TIMING.TELEOP_DURATION);
         hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TELEOP' }).catch(console.error);
+        hostActionAPI(eventName, password, 'updateTimerState', { 
+          timerSecondsRemaining: MATCH_TIMING.TELEOP_DURATION,
+        }).catch(console.error);
       }
     } else if (matchPhase === 'TELEOP' || matchPhase === 'END_GAME') {
       const remaining = MATCH_TIMING.TELEOP_DURATION - totalElapsed - 1;
       setSecondsRemaining(remaining);
+      
+      // Sync timer to database
+      hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerSecondsRemaining: remaining,
+      }).catch(console.error);
       
       // Check for endgame start (20 seconds remaining)
       if (totalElapsed + 1 === MATCH_TIMING.ENDGAME_START && matchPhase !== 'END_GAME') {
@@ -350,6 +391,10 @@ function HostPageContent() {
         }
         setMatchPhase('FINISHED');
         hostActionAPI(eventName, password, 'setMatchState', { matchState: 'FINISHED' }).catch(console.error);
+        hostActionAPI(eventName, password, 'updateTimerState', { 
+          timerRunning: false,
+          timerSecondsRemaining: 0,
+        }).catch(console.error);
         
         playAudio('endmatch', () => {
           setMatchPhase('UNDER_REVIEW');
@@ -376,7 +421,7 @@ function HostPageContent() {
     };
   }, [timerRunning, timerPaused, tick]);
 
-  // Start match
+  // Start match with 5-4-3-2-1 countdown synced to sound
   const handleStart = async () => {
     if (timerRunning) return;
     
@@ -384,19 +429,48 @@ function HostPageContent() {
     setTotalElapsed(0);
     setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
     waitingForSound.current = true;
+    setActionStatus('Match starting with countdown...');
     
-    // Play countdown -> matchstart sequence
-    playAudio('countdown', () => {
-      playAudio('startmatch', () => {
-        setMatchPhase('AUTONOMOUS');
-        setTimerRunning(true);
-        setTimerPaused(false);
-        waitingForSound.current = false;
-        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
-      });
-    });
+    // Play countdown audio and sync countdown numbers
+    playAudio('countdown');
     
-    setActionStatus('Match starting...');
+    // 5-4-3-2-1 countdown - each number lasts ~1 second (total ~5 seconds for countdown.wav)
+    const countdownNumbers = [5, 4, 3, 2, 1];
+    let countdownIndex = 0;
+    
+    // Start countdown display
+    const showCountdown = async () => {
+      if (countdownIndex < countdownNumbers.length) {
+        const currentNumber = countdownNumbers[countdownIndex];
+        // Sync countdown to database for display and referee tablets
+        hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: currentNumber }).catch(console.error);
+        countdownIndex++;
+        setTimeout(showCountdown, 1000);
+      } else {
+        // Countdown finished - clear the countdown display and start match
+        await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
+        
+        // Play match start sound
+        playAudio('startmatch', () => {
+          setMatchPhase('AUTONOMOUS');
+          setTimerRunning(true);
+          setTimerPaused(false);
+          waitingForSound.current = false;
+          
+          // Sync match state and timer
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
+          hostActionAPI(eventName, password, 'updateTimerState', { 
+            timerRunning: true,
+            timerPaused: false,
+            timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+            timerStartedAt: new Date().toISOString(),
+          }).catch(console.error);
+        });
+      }
+    };
+    
+    // Start the countdown
+    showCountdown();
   };
 
   // Stop match
@@ -415,6 +489,12 @@ function HostPageContent() {
     
     try {
       await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
+      await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null });
+      await hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerRunning: false,
+        timerPaused: false,
+        timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+      });
       setActionStatus('Match stopped');
     } catch (err) {
       console.error('Error stopping match:', err);
@@ -455,6 +535,33 @@ function HostPageContent() {
       blueTeam2,
     });
     setActionStatus(result.message);
+  };
+
+  // Update livestream URL
+  const updateLivestreamUrl = async () => {
+    const result = await hostActionAPI(eventName, password, 'setLivestreamUrl', {
+      livestreamUrl,
+    });
+    setActionStatus(result.message);
+    if (result.success) {
+      const data = await fetchEventAPI(eventName);
+      if (data) setEventData(data);
+    }
+  };
+
+  // Record match
+  const handleRecordMatch = async () => {
+    if (!eventData) return;
+    
+    const matchNumber = matchHistory.length + 1;
+    const result = await recordMatchAPI(eventName, matchNumber);
+    if (result.success) {
+      const history = await getMatchHistoryAPI(eventName);
+      setMatchHistory(history);
+      setActionStatus(`Match ${matchNumber} recorded successfully!`);
+    } else {
+      setActionStatus(`Failed to record match: ${result.message}`);
+    }
   };
 
   // Reset scores
@@ -623,7 +730,7 @@ function HostPageContent() {
         {/* Motif Control */}
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">🎨 Motif Pattern</h3>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {VALID_MOTIFS.map((motif) => (
               <button
                 key={motif}
@@ -637,6 +744,15 @@ function HostPageContent() {
                 {motif} - {MOTIF_NAMES[motif]?.split('(')[1]?.replace(')', '') || motif}
               </button>
             ))}
+            <button
+              onClick={() => {
+                const randomMotif = VALID_MOTIFS[Math.floor(Math.random() * VALID_MOTIFS.length)] as MotifType;
+                setMotif(randomMotif);
+              }}
+              className="px-6 py-3 rounded font-bold text-lg transition-colors bg-yellow-500 hover:bg-yellow-600 text-white"
+            >
+              🎲 Randomize
+            </button>
           </div>
         </div>
 
@@ -686,7 +802,32 @@ function HostPageContent() {
               </div>
             )}
             
-            <p className="text-sm text-gray-600">
+            {/* Livestream URL for display camera mode */}
+            <div className="mt-3 p-3 bg-gray-50 rounded">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Livestream URL (for Camera Display Mode)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={livestreamUrl}
+                  onChange={(e) => setLivestreamUrl(e.target.value)}
+                  placeholder="https://youtube.com/embed/... or stream URL"
+                  className="flex-1 p-2 border rounded text-sm"
+                />
+                <button
+                  onClick={updateLivestreamUrl}
+                  className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700"
+                >
+                  Set URL
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Use this to embed a livestream in the Camera display mode (/display?mode=camera).
+              </p>
+            </div>
+            
+            <p className="text-sm text-gray-600 mt-3">
               <strong>For OBS:</strong> Add the Display page as a Browser Source in OBS. You can add your camera as a separate Video Capture source and layer it with the score overlay.
             </p>
           </div>
@@ -770,7 +911,13 @@ function HostPageContent() {
       </div>
 
       {/* Action Buttons */}
-      <div className="sticky bottom-0 bg-gray-800 p-4 flex gap-4 justify-center">
+      <div className="sticky bottom-0 bg-gray-800 p-4 flex gap-4 justify-center flex-wrap">
+        <button
+          onClick={handleRecordMatch}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-purple-700"
+        >
+          📝 Record Match #{matchHistory.length + 1}
+        </button>
         <button
           onClick={() => setShowHistory(true)}
           className="bg-gray-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-gray-700"

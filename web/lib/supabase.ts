@@ -39,6 +39,11 @@ export interface EventData {
   timer_seconds_remaining: number;
   timer_started_at?: string;
   timer_paused_at?: string;
+  // Timestamp when timer_seconds_remaining was last updated (for sync precision)
+  timer_last_sync?: string;
+  
+  // Pre-match countdown (5, 4, 3, 2, 1 - null when not in countdown)
+  countdown_number?: number | null;
   
   // Camera livestream URL
   livestream_url: string;

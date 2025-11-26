@@ -65,7 +65,7 @@ async function updateEventScoresAPI(
   }
 }
 
-async function recordMatchAPI(eventName: string, matchNumber: number): Promise<boolean> {
+async function recordMatchAPI(eventName: string, matchNumber: number): Promise<{ success: boolean; message: string }> {
   try {
     const response = await fetch(`/api/events/${encodeURIComponent(eventName)}/matches`, {
       method: 'POST',
@@ -73,10 +73,10 @@ async function recordMatchAPI(eventName: string, matchNumber: number): Promise<b
       body: JSON.stringify({ matchNumber }),
     });
     const result = await response.json();
-    return result.success === true;
+    return { success: result.success === true, message: result.message || 'Unknown error' };
   } catch (error) {
     console.error('Error recording match:', error);
-    return false;
+    return { success: false, message: error instanceof Error ? error.message : 'Network error' };
   }
 }
 
@@ -112,6 +112,31 @@ function ScoringPageContent() {
   const [matchNumber, setMatchNumber] = useState(1);
   const [matchHistory, setMatchHistory] = useState<MatchRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  
+  // Timer display synced from host
+  const [timerDisplay, setTimerDisplay] = useState('--:--');
+  const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
+
+  // Format time as M:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(Math.max(0, seconds) / 60);
+    const secs = Math.max(0, seconds) % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Calculate precise time remaining based on sync timestamp
+  const calculatePreciseTime = (data: EventData): number => {
+    let seconds = data.timer_seconds_remaining ?? 30;
+    
+    if (data.timer_last_sync && data.timer_running && !data.timer_paused) {
+      const syncTime = new Date(data.timer_last_sync).getTime();
+      const now = Date.now();
+      const elapsedSinceSync = Math.floor((now - syncTime) / 1000);
+      seconds = Math.max(0, seconds - elapsedSinceSync);
+    }
+    
+    return seconds;
+  };
 
   // Verify and connect to event
   useEffect(() => {
@@ -142,6 +167,8 @@ function ScoringPageContent() {
         setEventData(data);
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
+        setTimerDisplay(formatTime(calculatePreciseTime(data)));
+        setCountdownDisplay(data.countdown_number ?? null);
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
         
@@ -175,6 +202,9 @@ function ScoringPageContent() {
           } else {
             setRedScore(extractRedScore(data));
           }
+          // Sync timer display from host with precise timing
+          setTimerDisplay(formatTime(calculatePreciseTime(data)));
+          setCountdownDisplay(data.countdown_number ?? null);
           setLastSync(new Date().toLocaleTimeString());
         }
       } catch (err) {
@@ -214,14 +244,14 @@ function ScoringPageContent() {
   const handleRecordMatch = async () => {
     if (!eventData) return;
     
-    const success = await recordMatchAPI(eventName, matchNumber);
-    if (success) {
+    const result = await recordMatchAPI(eventName, matchNumber);
+    if (result.success) {
       const history = await getMatchHistoryAPI(eventName);
       setMatchHistory(history);
       setMatchNumber(history.length + 1);
       alert(`Match ${matchNumber} recorded successfully!`);
     } else {
-      alert('Failed to record match');
+      alert(`Failed to record match: ${result.message}`);
     }
   };
 
@@ -282,7 +312,8 @@ function ScoringPageContent() {
           blueTeam2={eventData?.blue_team2 || ''}
           motif={eventData?.motif || 'PPG'}
           matchPhase={eventData?.match_state || 'NOT_STARTED'}
-          timeDisplay="--:--"
+          timeDisplay={timerDisplay}
+          countdownNumber={countdownDisplay}
         />
       </div>
 
