@@ -214,6 +214,28 @@ export function extractBlueScore(event: EventData): DecodeScore {
 // Supabase client singleton
 let supabase: SupabaseClient | null = null;
 
+/**
+ * Helper function to detect if a key looks like a service role key (secret key).
+ * Supabase JWTs contain a "role" claim - service_role for secret keys, anon for public keys.
+ * Service role keys typically have "role":"service_role" in the payload.
+ */
+function isServiceRoleKey(key: string): boolean {
+  try {
+    // Supabase keys are JWTs - the second part (payload) is base64 encoded
+    const parts = key.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Decode the payload (second part)
+    const payload = JSON.parse(atob(parts[1]));
+    
+    // Check if it's a service_role key
+    return payload.role === 'service_role';
+  } catch {
+    // If we can't parse it, assume it's safe (let Supabase handle validation)
+    return false;
+  }
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
   if (supabase) return supabase;
   
@@ -223,6 +245,17 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!url || !key) {
     console.warn('Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
     return null;
+  }
+  
+  // SECURITY CHECK: Detect if a service role key is accidentally being used in the browser
+  // This prevents the "Forbidden use of secret API key in browser" error
+  if (typeof window !== 'undefined' && isServiceRoleKey(key)) {
+    console.error(
+      'SECURITY ERROR: A service role (secret) API key is being used in the browser. ' +
+      'This is a security vulnerability. Please use the anon/public key for NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'The service role key should only be used in server-side code (API routes).'
+    );
+    throw new ForbiddenApiKeyError();
   }
   
   supabase = createClient(url, key);
@@ -331,6 +364,18 @@ export class DatabaseConnectionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'DatabaseConnectionError';
+  }
+}
+
+// Custom error class for forbidden API key usage in browser
+export class ForbiddenApiKeyError extends Error {
+  constructor() {
+    super(
+      'Configuration Error: A secret/service role API key is being used in the browser. ' +
+      'This is a security risk. Please use the anon/public key (NEXT_PUBLIC_SUPABASE_ANON_KEY) ' +
+      'for browser operations. The service role key should only be used in server-side API routes.'
+    );
+    this.name = 'ForbiddenApiKeyError';
   }
 }
 
