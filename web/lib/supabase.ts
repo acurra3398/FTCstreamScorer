@@ -33,6 +33,16 @@ export interface EventData {
   motif: MotifType;
   match_state: MatchState;
   
+  // Timer state (managed by host)
+  timer_running: boolean;
+  timer_paused: boolean;
+  timer_seconds_remaining: number;
+  timer_started_at?: string;
+  timer_paused_at?: string;
+  
+  // Camera livestream URL
+  livestream_url: string;
+  
   // Team info
   red_team1: string;
   red_team2: string;
@@ -328,6 +338,10 @@ export async function createEvent(
     password_hash: passwordHash,
     motif: 'PPG',
     match_state: 'NOT_STARTED',
+    timer_running: false,
+    timer_paused: false,
+    timer_seconds_remaining: 30,
+    livestream_url: '',
     red_team1: '',
     red_team2: '',
     blue_team1: '',

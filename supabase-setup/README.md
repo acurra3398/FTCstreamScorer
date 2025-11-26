@@ -29,6 +29,8 @@ This guide helps you set up your own cloud sync backend using Supabase (free tie
 4. Click "Run" (or press Ctrl+Enter)
 5. You should see "Success. No rows returned"
 
+**If you already have an existing database**, run `migration-timer-livestream.sql` instead to add the new timer and livestream fields.
+
 ### Step 3: Get Your API Credentials
 
 1. Go to **Settings** → **API** (in left sidebar)
