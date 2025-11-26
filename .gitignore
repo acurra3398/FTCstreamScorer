@@ -36,3 +36,7 @@ Thumbs.db
 *.bak
 *.swp
 *~.nib
+
+# Node.js
+node_modules/
+package-lock.json
