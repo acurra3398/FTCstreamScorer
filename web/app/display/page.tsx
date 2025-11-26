@@ -14,7 +14,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES } from '@/lib/constants';
+import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG } from '@/lib/constants';
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -166,9 +166,7 @@ function DisplayPageContent() {
           peerConnectionRef.current.close();
         }
         
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
         // Handle incoming audio track
@@ -256,12 +254,7 @@ function DisplayPageContent() {
           videoPeerConnectionRef.current.close();
         }
         
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         videoPeerConnectionRef.current = pc;
         
         // Handle incoming video track

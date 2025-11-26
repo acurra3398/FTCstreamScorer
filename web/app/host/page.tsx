@@ -17,7 +17,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -364,9 +364,7 @@ function HostPageContent() {
         setAudioStatus('Audio streaming active - Microphone is live!');
         
         // Create WebRTC peer connection for audio
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
         // Add audio track to connection
@@ -432,12 +430,7 @@ function HostPageContent() {
         setCameraStatus('Starting video stream...');
         
         // Create WebRTC peer connection for video
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ]
-        });
+        const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         videoPeerConnectionRef.current = pc;
         
         // Add video track to connection

@@ -101,3 +101,32 @@ export const BASE_STATUS_NAMES: Record<string, string> = {
   PARTIALLY_IN_BASE: 'Partially in BASE',
   FULLY_IN_BASE: 'Fully in BASE',
 };
+
+// WebRTC ICE server configuration
+// Includes STUN servers for NAT traversal and TURN servers for relay fallback
+export const WEBRTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    // Google STUN servers (free, for NAT traversal)
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    // OpenRelay TURN servers (free, for relay when direct connection fails)
+    // These are public TURN servers provided by metered.ca
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  ],
+  iceCandidatePoolSize: 10,
+};
