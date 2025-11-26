@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScoreBar from '@/components/ScoreBar';
+import ScoringControls from '@/components/ScoringControls';
 import MatchHistory from '@/components/MatchHistory';
 import { 
   DecodeScore, 
@@ -10,11 +11,13 @@ import {
   MatchRecord,
   MatchState,
   MotifType,
+  BaseStatus,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
+  calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -72,6 +75,25 @@ async function recordMatchAPI(eventName: string, matchNumber: number): Promise<{
   } catch (error) {
     console.error('Error recording match:', error);
     return { success: false, message: error instanceof Error ? error.message : 'Network error' };
+  }
+}
+
+async function updateEventScoresAPI(
+  eventName: string, 
+  alliance: 'RED' | 'BLUE', 
+  score: Partial<DecodeScore>
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/events/${encodeURIComponent(eventName)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alliance, score }),
+    });
+    const result = await response.json();
+    return result.success === true;
+  } catch (error) {
+    console.error('Error updating scores:', error);
+    return false;
   }
 }
 
@@ -182,6 +204,9 @@ function HostPageContent() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const waitingForSound = useRef(false);
   
+  // Show score editing tab
+  const [showScoreEdit, setShowScoreEdit] = useState(false);
+  
   const { playAudio, stopAll } = useAudioService();
 
   // Format time display
@@ -189,6 +214,49 @@ function HostPageContent() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  // Handle score change for host editing
+  const handleScoreChange = useCallback(async (
+    alliance: 'RED' | 'BLUE',
+    field: keyof DecodeScore,
+    value: number | boolean | BaseStatus
+  ) => {
+    const updateFn = alliance === 'RED' ? setRedScore : setBlueScore;
+    
+    // Update local state immediately
+    updateFn(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    // Send to server via API
+    try {
+      await updateEventScoresAPI(eventName, alliance, { [field]: value });
+    } catch (err) {
+      console.error('Failed to update score:', err);
+    }
+  }, [eventName]);
+  
+  // Release final scores with video display
+  const handleReleaseFinalScores = async () => {
+    if (!eventData) return;
+    
+    const redTotal = calculateTotalWithPenalties(redScore, blueScore);
+    const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
+    
+    // Set match state to SCORES_RELEASED
+    await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'SCORES_RELEASED' });
+    setMatchPhase('SCORES_RELEASED');
+    
+    // Play results sound
+    playAudio('results');
+    
+    setActionStatus(`Final scores released! ${
+      redTotal > blueTotal ? 'RED WINS!' : 
+      blueTotal > redTotal ? 'BLUE WINS!' : 
+      'TIE!'
+    } Red: ${redTotal}, Blue: ${blueTotal}`);
   };
 
   // Load available cameras
@@ -720,6 +788,18 @@ function HostPageContent() {
             )}
           </div>
           
+          {/* Release Final Scores button - only show when match is finished or under review */}
+          {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleReleaseFinalScores}
+                className="px-8 py-4 bg-purple-700 text-white rounded-lg font-bold text-xl hover:bg-purple-800 transition-colors animate-pulse"
+              >
+                🏆 Release Final Scores
+              </button>
+            </div>
+          )}
+          
           {/* Match Timeline */}
           <div className="mt-4 text-sm text-gray-600 text-center">
             <span>AUTO (0:30)</span>
@@ -730,6 +810,40 @@ function HostPageContent() {
             <span className="mx-2">→</span>
             <span>ENDGAME (last 0:20)</span>
           </div>
+        </div>
+        
+        {/* Host Score Editing Controls */}
+        <div className="bg-white rounded-lg p-4 shadow">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-bold">✏️ Score Editing (Host Override)</h3>
+            <button
+              onClick={() => setShowScoreEdit(!showScoreEdit)}
+              className={`px-4 py-2 rounded font-bold transition-colors ${
+                showScoreEdit 
+                  ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {showScoreEdit ? 'Hide Scores' : 'Edit Scores'}
+            </button>
+          </div>
+          
+          {showScoreEdit && (
+            <div className="flex gap-4 flex-col lg:flex-row">
+              <ScoringControls
+                alliance="RED"
+                score={redScore}
+                onScoreChange={(field, value) => handleScoreChange('RED', field, value)}
+                disabled={false}
+              />
+              <ScoringControls
+                alliance="BLUE"
+                score={blueScore}
+                onScoreChange={(field, value) => handleScoreChange('BLUE', field, value)}
+                disabled={false}
+              />
+            </div>
+          )}
         </div>
 
         {/* Motif Control */}
