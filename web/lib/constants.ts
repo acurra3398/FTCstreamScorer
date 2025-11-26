@@ -1,0 +1,68 @@
+// Emoji icons for scoring elements (matching Java EmojiConfig)
+export const EMOJI = {
+  CLASSIFIED: '🟢',
+  OVERFLOW: '➕',
+  LEAVE: '🚗',
+  BASE: '🏠',
+  PATTERN: '✔',
+  FOUL: '⚠',
+  TROPHY: '🏆',
+  TIMER: '⏱️',
+  TEAM: '👥',
+};
+
+// Colors matching LIVE FTC Stream Scorer UI (sampled from reference image)
+export const COLORS = {
+  // Primary panel colors (sampled from live UI)
+  RED_PRIMARY: '#790213',      // Live UI red panel
+  RED_DARK: '#5a0110',
+  BLUE_PRIMARY: '#0A6CAF',     // Live UI blue panel
+  BLUE_DARK: '#085a94',
+  
+  // Neutral colors
+  WHITE: '#FFFFFF',
+  BLACK: '#000000',
+  PLACEHOLDER_GRAY: '#8A8A8C', // Placeholder gray from reference
+  
+  // Accent colors
+  YELLOW: 'rgb(255, 235, 59)',
+  GOLD: 'gold',
+};
+
+// Layout constants based on reference image (1382×776 baseline)
+export const LAYOUT = {
+  // Baseline canvas dimensions
+  BASELINE_WIDTH: 1382,
+  BASELINE_HEIGHT: 776,
+  
+  // Overlay (scorebar) dimensions as percentage of container
+  OVERLAY_HEIGHT_PERCENT: 16.88,  // 131px / 776px = 16.88%
+  VIDEO_AREA_HEIGHT_PERCENT: 83.12, // 645px / 776px = 83.12%
+  
+  // Panel widths as percentage of container width
+  SIDE_PANEL_WIDTH_PERCENT: 33.33, // ~460px / 1382px ≈ 33%
+  CENTER_PANEL_WIDTH_PERCENT: 14.5, // ~200px / 1382px ≈ 14.5%
+  
+  // Font sizes as percentage of overlay height
+  TIMER_FONT_SIZE_PERCENT: 60,    // 78px / 131px ≈ 60%
+  SMALL_TEXT_PERCENT: 35,         // 46px / 131px ≈ 35%
+  ICON_TEXT_PERCENT: 25,          // smaller text for icons
+  
+  // Padding as percentage of overlay height
+  VERTICAL_PADDING_PERCENT: 6,
+  HORIZONTAL_PADDING_PERCENT: 6,
+};
+
+// Motif display names
+export const MOTIF_NAMES: Record<string, string> = {
+  PPG: 'PPG (Purple-Purple-Green)',
+  PGP: 'PGP (Purple-Green-Purple)',
+  GPP: 'GPP (Green-Purple-Purple)',
+};
+
+// Base status display names
+export const BASE_STATUS_NAMES: Record<string, string> = {
+  NOT_IN_BASE: 'Not in BASE',
+  PARTIALLY_IN_BASE: 'Partially in BASE',
+  FULLY_IN_BASE: 'Fully in BASE',
+};
