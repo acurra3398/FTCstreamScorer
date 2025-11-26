@@ -322,7 +322,7 @@ function HostPageContent() {
     const combinedStream = new MediaStream(tracks);
     
     try {
-      // Try to use WebM with VP9/Opus codecs for better quality
+      // Try to use WebM with VP9/Opus codecs for better quality, with fallbacks
       let mimeType = 'video/webm;codecs=vp9,opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp8,opus';
@@ -333,7 +333,9 @@ function HostPageContent() {
       
       const mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType,
-        videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
+        // 2.5 Mbps provides a good balance between quality and file size for match recordings
+        // (720p quality at ~3 minutes match duration = ~55MB file)
+        videoBitsPerSecond: 2500000,
       });
       
       recordedChunksRef.current = [];
@@ -382,9 +384,12 @@ function HostPageContent() {
   const downloadRecording = useCallback(() => {
     if (!recordedBlobUrl) return;
     
+    // Sanitize eventName for safe filename (remove special characters)
+    const safeEventName = eventName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
     const a = document.createElement('a');
     a.href = recordedBlobUrl;
-    a.download = `match_${recordedMatchNumber || 'unknown'}_${eventName}_${new Date().toISOString().slice(0, 10)}.webm`;
+    a.download = `match_${recordedMatchNumber || 'unknown'}_${safeEventName}_${new Date().toISOString().slice(0, 10)}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
