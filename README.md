@@ -70,25 +70,55 @@ If installers aren't available for your platform, you can run the JAR file direc
 
 ---
 
-## 📡 Multi-Device Wireless Scoring
+## 📡 Multi-Device Scoring
 
-You can have multiple devices scoring different alliances and sync them to a main computer.
+Score matches with multiple devices - one person per alliance!
 
-### Setting Up the Main Computer (Server)
+### ☁️ Cloud Sync (Recommended)
+
+Works across any network - no WiFi configuration needed!
+
+#### Step 1: Set Up Backend (One-time)
+
+1. Create a free account at [supabase.com](https://supabase.com)
+2. Run the SQL setup script from `supabase-setup/setup.sql`
+3. Update the app with your Supabase credentials (see `supabase-setup/README.md`)
+
+#### Step 2: Host Creates Event
+
+1. **Start FTC Stream Scorer** on the main computer
+2. **Click "Create Event"** in the Cloud Sync section
+3. **Enter an event name** (e.g., "SCRIMMAGE_2024")
+4. **Enter a password** (share this with your scorers)
+5. Share the event name and password with your team
+
+#### Step 3: Scorers Join
+
+1. **Start FTC Stream Scorer** on each scoring device
+2. **Click "Join Event"**
+3. **Enter the event name and password**
+4. **Select alliance** (Red or Blue)
+5. Start scoring! Changes sync automatically via cloud
+
+### 📶 Local WiFi Sync (Fallback)
+
+If you don't have cloud sync set up, you can use local WiFi sync:
+
+#### Setting Up the Main Computer (Server)
 
 1. **Start FTC Stream Scorer** on your main computer
 2. **Click "Start Sync Server"** in the control panel
 3. **Note the connection address** shown (e.g., `192.168.1.100:5555`)
 4. The server is now ready to accept connections
 
-### Setting Up Remote Scoring Devices (Clients)
+#### Setting Up Remote Scoring Devices (Clients)
 
 1. **Start FTC Stream Scorer** on the remote device
 2. **Connect to the server** using the IP:port from the main computer
 3. **Select alliance** - choose Red or Blue alliance to score
 4. Start scoring! Changes sync automatically
 
-### Network Requirements
+#### Network Requirements
 
 - All devices must be on the **same WiFi network**
 - The main computer's firewall may need to allow port 5555
