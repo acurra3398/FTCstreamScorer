@@ -8,6 +8,8 @@ Perfect for teams streaming scrimmages, practice matches, or unofficial events.
 
 ## 📥 Download & Install
 
+Native installers are automatically built for all platforms via GitHub Actions.
+
 ### Windows (Recommended)
 1. **Download** the latest installer from the [Releases page](../../releases)
 2. **Run** the `.msi` installer
@@ -60,35 +62,65 @@ If installers aren't available for your platform, you can run the JAR file direc
 | Feature | Description |
 |---------|-------------|
 | 📺 **Dual-Window Design** | Separate control panel and stream display |
-| 🎥 **Webcam Integration** | Show your field camera with scoring overlay |
+| 🎥 **HD Webcam Integration** | 1080p @ 60fps webcam with scoring overlay |
 | ⏱️ **Authentic Timing** | Official FTC match timing (30s Auto, 120s TeleOp) |
 | 🔊 **Official Sounds** | Real FTC countdown and match sounds |
 | 🏆 **DECODE Scoring** | Full 2025-2026 season rules built-in |
 | 💾 **Works Offline** | No internet or login required |
-| 🎬 **Winner Videos** | Play celebration videos before final results |
+| 🎬 **Winner Videos** | Play celebration videos with audio before final results |
 | 📡 **Wireless Sync** | Multiple devices can score together |
 
 ---
 
-## 📡 Multi-Device Wireless Scoring
+## 📡 Multi-Device Scoring
 
-You can have multiple devices scoring different alliances and sync them to a main computer.
+Score matches with multiple devices - one person per alliance!
 
-### Setting Up the Main Computer (Server)
+### ☁️ Cloud Sync (Recommended)
+
+Works across any network - no WiFi configuration needed!
+
+#### Step 1: Set Up Backend (One-time)
+
+1. Create a free account at [supabase.com](https://supabase.com)
+2. Run the SQL setup script from `supabase-setup/setup.sql`
+3. Update the app with your Supabase credentials (see `supabase-setup/README.md`)
+
+#### Step 2: Host Creates Event
+
+1. **Start FTC Stream Scorer** on the main computer
+2. **Click "Create Event"** in the Cloud Sync section
+3. **Enter an event name** (e.g., "SCRIMMAGE_2024")
+4. **Enter a password** (share this with your scorers)
+5. Share the event name and password with your team
+
+#### Step 3: Scorers Join
+
+1. **Start FTC Stream Scorer** on each scoring device
+2. **Click "Join Event"**
+3. **Enter the event name and password**
+4. **Select alliance** (Red or Blue)
+5. Start scoring! Changes sync automatically via cloud
+
+### 📶 Local WiFi Sync (Fallback)
+
+If you don't have cloud sync set up, you can use local WiFi sync:
+
+#### Setting Up the Main Computer (Server)
 
 1. **Start FTC Stream Scorer** on your main computer
 2. **Click "Start Sync Server"** in the control panel
 3. **Note the connection address** shown (e.g., `192.168.1.100:5555`)
 4. The server is now ready to accept connections
 
-### Setting Up Remote Scoring Devices (Clients)
+#### Setting Up Remote Scoring Devices (Clients)
 
 1. **Start FTC Stream Scorer** on the remote device
 2. **Connect to the server** using the IP:port from the main computer
 3. **Select alliance** - choose Red or Blue alliance to score
 4. Start scoring! Changes sync automatically
 
-### Network Requirements
+#### Network Requirements
 
 - All devices must be on the **same WiFi network**
 - The main computer's firewall may need to allow port 5555
@@ -114,8 +146,21 @@ When you click "Show Final Results", the app can play a celebration video before
    - **MP4** (H.264 codec)
    - **Resolution:** 1280x720 or 1920x1080
    - **Duration:** 5-15 seconds
+   - **Audio:** Include audio track for celebration sounds! 🔊
 
 If videos are not found, the final results will display immediately.
+
+---
+
+## 📹 Webcam Settings
+
+The app automatically uses the highest quality settings supported by your webcam:
+
+- **Target Resolution:** 1920x1080 (1080p) - falls back to best available
+- **Target Frame Rate:** 60 FPS for smooth video
+- **Smooth Scaling:** Enabled for better video quality
+
+The webcam will automatically select the best supported resolution if your camera doesn't support 1080p.
 
 ---
 

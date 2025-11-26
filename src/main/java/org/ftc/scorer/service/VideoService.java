@@ -23,6 +23,7 @@ public class VideoService {
     public VideoService() {
         mediaView = new MediaView();
         mediaView.setPreserveRatio(true);
+        mediaView.setSmooth(true); // Enable smooth scaling for better video quality
     }
     
     /**
@@ -96,6 +97,10 @@ public class VideoService {
                 Media media = new Media(resource.toString());
                 currentPlayer = new MediaPlayer(media);
                 mediaView.setMediaPlayer(currentPlayer);
+                
+                // Enable audio playback at full volume
+                currentPlayer.setVolume(1.0);
+                currentPlayer.setMute(false);
                 
                 currentPlayer.setOnEndOfMedia(() -> {
                     stop();
