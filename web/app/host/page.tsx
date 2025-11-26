@@ -134,6 +134,7 @@ function useAudioService() {
       Object.values(audioRefs.current).forEach(audio => {
         audio.pause();
         audio.src = '';
+        audio.onended = null;
       });
     };
   }, []);
@@ -141,12 +142,29 @@ function useAudioService() {
   const playAudio = useCallback((key: string, onEnded?: () => void) => {
     const audio = audioRefs.current[key];
     if (audio) {
+      // Clear any previous onended handler
+      audio.onended = null;
       audio.currentTime = 0;
+      
       if (onEnded) {
-        audio.onended = onEnded;
+        // Use addEventListener for more reliable callback
+        const handleEnded = () => {
+          audio.removeEventListener('ended', handleEnded);
+          onEnded();
+        };
+        audio.addEventListener('ended', handleEnded);
       }
-      audio.play().catch(err => console.error('Audio playback failed:', err));
+      
+      audio.play().catch(err => {
+        console.error('Audio playback failed:', err);
+        // If audio fails to play, still call the callback after a short delay
+        // This ensures the match flow continues even if audio doesn't work
+        if (onEnded) {
+          setTimeout(onEnded, 100);
+        }
+      });
     } else if (onEnded) {
+      // No audio element, call callback immediately
       onEnded();
     }
   }, []);
@@ -155,6 +173,7 @@ function useAudioService() {
     Object.values(audioRefs.current).forEach(audio => {
       audio.pause();
       audio.currentTime = 0;
+      audio.onended = null;
     });
   }, []);
   
@@ -462,26 +481,45 @@ function HostPageContent() {
         setCameraStreaming(true);
         setCameraStatus('📹 Waiting for display to connect...');
         
-        // Poll for display's answer
+        // Poll for display's answer with timeout
+        let pollAttempts = 0;
+        const maxPollAttempts = 30; // 30 seconds timeout
         const pollForAnswer = setInterval(async () => {
+          pollAttempts++;
+          
+          // Timeout after 30 seconds
+          if (pollAttempts > maxPollAttempts) {
+            clearInterval(pollForAnswer);
+            setCameraStatus('⏱️ Connection timeout - Display may not be connected');
+            return;
+          }
+          
           try {
             const data = await fetchEventAPI(eventName);
             if (data?.video_sdp_answer && pc.signalingState === 'have-local-offer') {
               // Display has sent an answer
-              const answer = JSON.parse(data.video_sdp_answer);
-              await pc.setRemoteDescription(new RTCSessionDescription(answer));
-              setCameraStatus('📹 Video streaming - LIVE');
-              
-              // Add display's ICE candidates
-              if (data.video_ice_candidates_display) {
-                const displayCandidates = JSON.parse(data.video_ice_candidates_display);
-                for (const candidate of displayCandidates) {
+              try {
+                const answer = JSON.parse(data.video_sdp_answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                setCameraStatus('📹 Video streaming - LIVE');
+                
+                // Add display's ICE candidates
+                if (data.video_ice_candidates_display) {
                   try {
-                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    const displayCandidates = JSON.parse(data.video_ice_candidates_display);
+                    for (const candidate of displayCandidates) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                      } catch (e) {
+                        console.error('Error adding display ICE candidate:', e);
+                      }
+                    }
                   } catch (e) {
-                    console.error('Error adding display ICE candidate:', e);
+                    console.error('Error parsing display ICE candidates:', e);
                   }
                 }
+              } catch (e) {
+                console.error('Error parsing video SDP answer:', e);
               }
               
               clearInterval(pollForAnswer);
@@ -491,8 +529,15 @@ function HostPageContent() {
           }
         }, 1000);
         
-        // Store interval ID for cleanup
-        (pc as RTCPeerConnection & { pollInterval?: NodeJS.Timeout }).pollInterval = pollForAnswer;
+        // Store interval ID in a ref for proper cleanup on component unmount
+        const currentPollRef = { interval: pollForAnswer };
+        
+        // Cleanup on stop - store reference in closure for the stop handler
+        const originalClose = pc.close.bind(pc);
+        pc.close = () => {
+          clearInterval(currentPollRef.interval);
+          originalClose();
+        };
         
       } catch (err) {
         console.error('Error starting video stream:', err);
@@ -724,9 +769,6 @@ function HostPageContent() {
     waitingForSound.current = true;
     setActionStatus('Match starting with countdown...');
     
-    // Play countdown audio and sync countdown numbers
-    playAudio('countdown');
-    
     // Use constants for countdown sequence
     const countdownNumbers = MATCH_TIMING.COUNTDOWN_NUMBERS;
     let countdownIndex = 0;
@@ -737,7 +779,32 @@ function HostPageContent() {
     }).catch(console.error);
     countdownIndex++;
     
-    // Use setInterval for consistent timing (more reliable than recursive setTimeout)
+    // Play countdown audio - timer will start when this audio ENDS
+    // This ensures the timer starts at the end of the GO sound, not the first ring
+    playAudio('countdown', () => {
+      // Countdown audio has finished (including any GO sound at the end)
+      // Clear the countdown display
+      hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
+      
+      // Start the match immediately after countdown audio ends
+      setMatchPhase('AUTONOMOUS');
+      setTimerRunning(true);
+      setTimerPaused(false);
+      waitingForSound.current = false;
+      
+      // Sync match state and timer
+      hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
+      hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerRunning: true,
+        timerPaused: false,
+        timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+        timerStartedAt: new Date().toISOString(),
+      }).catch(console.error);
+      
+      setActionStatus('Match started! Autonomous period.');
+    });
+    
+    // Use setInterval for visual countdown - this runs in parallel with audio
     const countdownInterval = setInterval(async () => {
       if (countdownIndex < countdownNumbers.length) {
         const currentNumber = countdownNumbers[countdownIndex];
@@ -745,28 +812,9 @@ function HostPageContent() {
         hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: currentNumber }).catch(console.error);
         countdownIndex++;
       } else {
-        // Countdown finished - clear interval and start match
+        // Visual countdown finished - clear interval
         clearInterval(countdownInterval);
-        
-        // Clear the countdown display
-        await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
-        
-        // Play match start sound
-        playAudio('startmatch', () => {
-          setMatchPhase('AUTONOMOUS');
-          setTimerRunning(true);
-          setTimerPaused(false);
-          waitingForSound.current = false;
-          
-          // Sync match state and timer
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
-          hostActionAPI(eventName, password, 'updateTimerState', { 
-            timerRunning: true,
-            timerPaused: false,
-            timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
-            timerStartedAt: new Date().toISOString(),
-          }).catch(console.error);
-        });
+        // Note: Match doesn't start here - it starts when audio ends
       }
     }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS);
   };

@@ -241,6 +241,16 @@ function DisplayPageContent() {
       setVideoConnectionStatus('Connecting to host camera...');
       
       try {
+        // Parse the offer first to validate it
+        let offer;
+        try {
+          offer = JSON.parse(data.video_sdp_offer);
+        } catch (parseErr) {
+          console.error('Invalid video SDP offer:', parseErr);
+          setVideoConnectionStatus('Error: Invalid video offer received');
+          return;
+        }
+        
         // Create peer connection for receiving video
         if (videoPeerConnectionRef.current) {
           videoPeerConnectionRef.current.close();
@@ -297,19 +307,22 @@ function DisplayPageContent() {
           }
         };
         
-        // Set remote description (the offer from host)
-        const offer = JSON.parse(data.video_sdp_offer);
+        // Set remote description (the offer was already parsed above)
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         
         // Add host's ICE candidates
         if (data.video_ice_candidates_host) {
-          const hostCandidates = JSON.parse(data.video_ice_candidates_host);
-          for (const candidate of hostCandidates) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (e) {
-              console.error('Error adding host ICE candidate:', e);
+          try {
+            const hostCandidates = JSON.parse(data.video_ice_candidates_host);
+            for (const candidate of hostCandidates) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (e) {
+                console.error('Error adding host ICE candidate:', e);
+              }
             }
+          } catch (parseErr) {
+            console.error('Error parsing host ICE candidates:', parseErr);
           }
         }
         
