@@ -8,12 +8,16 @@ import java.net.URL;
 /**
  * Service for playing winner celebration videos
  * Videos should be placed in src/main/resources/videos/
- * - red_winner.mp4 for red alliance victory
- * - blue_winner.mp4 for blue alliance victory
+ * Supports WebM and MP4 formats:
+ * - red_winner.webm or red_winner.mp4 for red alliance victory
+ * - blue_winner.webm or blue_winner.mp4 for blue alliance victory
  */
 public class VideoService {
     private MediaPlayer currentPlayer;
     private MediaView mediaView;
+    
+    // Supported video formats in order of preference
+    private static final String[] VIDEO_EXTENSIONS = {".webm", ".mp4"};
     
     public VideoService() {
         mediaView = new MediaView();
@@ -29,12 +33,36 @@ public class VideoService {
     
     /**
      * Play the winner video based on which alliance won
+     * Tries WebM first, then MP4 as fallback
      * @param redWins true if red alliance won, false if blue alliance won
      * @param onFinished callback when video finishes or if video not found
      */
     public void playWinnerVideo(boolean redWins, Runnable onFinished) {
-        String videoPath = redWins ? "/videos/red_winner.mp4" : "/videos/blue_winner.mp4";
-        playVideo(videoPath, onFinished);
+        String baseName = redWins ? "/videos/red_winner" : "/videos/blue_winner";
+        String videoPath = findVideoPath(baseName);
+        if (videoPath != null) {
+            playVideo(videoPath, onFinished);
+        } else {
+            System.out.println("No winner video found for " + baseName + " - Showing results directly");
+            if (onFinished != null) {
+                onFinished.run();
+            }
+        }
+    }
+    
+    /**
+     * Find the video path by trying supported extensions
+     * @param basePath base path without extension (e.g., "/videos/red_winner")
+     * @return full path with extension if found, null otherwise
+     */
+    private String findVideoPath(String basePath) {
+        for (String ext : VIDEO_EXTENSIONS) {
+            String path = basePath + ext;
+            if (getClass().getResource(path) != null) {
+                return path;
+            }
+        }
+        return null;
     }
     
     /**
@@ -82,13 +110,13 @@ public class VideoService {
     }
     
     /**
-     * Check if a winner video exists
+     * Check if a winner video exists (in any supported format)
      * @param redWins true to check for red winner video, false for blue
      * @return true if the video file exists
      */
     public boolean hasWinnerVideo(boolean redWins) {
-        String videoPath = redWins ? "/videos/red_winner.mp4" : "/videos/blue_winner.mp4";
-        return getClass().getResource(videoPath) != null;
+        String baseName = redWins ? "/videos/red_winner" : "/videos/blue_winner";
+        return findVideoPath(baseName) != null;
     }
     
     /**

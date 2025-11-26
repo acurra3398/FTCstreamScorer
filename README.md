@@ -103,13 +103,14 @@ When you click "Show Final Results", the app can play a celebration video before
 ### Setting Up Winner Videos
 
 1. Create two video files:
-   - `red_winner.mp4` - plays when Red Alliance wins
-   - `blue_winner.mp4` - plays when Blue Alliance wins
+   - `red_winner.webm` or `red_winner.mp4` - plays when Red Alliance wins
+   - `blue_winner.webm` or `blue_winner.mp4` - plays when Blue Alliance wins
 
 2. Place them in: `src/main/resources/videos/`
 
-3. Recommended format:
-   - **Format:** MP4 (H.264 codec)
+3. Supported formats:
+   - **WebM** (VP8/VP9 codec) - Recommended
+   - **MP4** (H.264 codec)
    - **Resolution:** 1280x720 or 1920x1080
    - **Duration:** 5-15 seconds
 

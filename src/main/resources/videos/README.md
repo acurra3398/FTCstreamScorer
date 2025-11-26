@@ -2,12 +2,18 @@
 
 Place your winner celebration videos in this folder:
 
-- `red_winner.mp4` - Played when Red Alliance wins
-- `blue_winner.mp4` - Played when Blue Alliance wins
+- `red_winner.webm` or `red_winner.mp4` - Played when Red Alliance wins
+- `blue_winner.webm` or `blue_winner.mp4` - Played when Blue Alliance wins
+
+## Supported Formats
+
+- **WebM** (VP8/VP9 codec) - Recommended
+- **MP4** (H.264 codec)
+
+The application will try WebM first, then fall back to MP4 if not found.
 
 ## Requirements
 
-- Format: MP4 (H.264 codec recommended)
 - Resolution: Match your stream output resolution (e.g., 1920x1080 or 1280x720)
 - Duration: Short celebratory clips work best (5-15 seconds recommended)
 
