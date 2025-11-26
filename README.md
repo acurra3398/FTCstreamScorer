@@ -8,6 +8,8 @@ Perfect for teams streaming scrimmages, practice matches, or unofficial events.
 
 ## 📥 Download & Install
 
+Native installers are automatically built for all platforms via GitHub Actions.
+
 ### Windows (Recommended)
 1. **Download** the latest installer from the [Releases page](../../releases)
 2. **Run** the `.msi` installer
