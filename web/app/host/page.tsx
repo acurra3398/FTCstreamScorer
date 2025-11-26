@@ -234,6 +234,14 @@ function HostPageContent() {
   const [audioStatus, setAudioStatus] = useState<string>('');
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   
+  // Match recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState<string>('');
+  const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
+  const [recordedMatchNumber, setRecordedMatchNumber] = useState<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  
   // Show score editing tab
   const [showScoreEdit, setShowScoreEdit] = useState(false);
   
@@ -282,12 +290,120 @@ function HostPageContent() {
     // Play results sound
     playAudio('results');
     
+    // Stop recording after a brief delay for the results animation
+    setTimeout(() => {
+      stopRecording();
+    }, 3000); // 3 second delay to capture final results display
+    
     setActionStatus(`Final scores released! ${
       redTotal > blueTotal ? 'RED WINS!' : 
       blueTotal > redTotal ? 'BLUE WINS!' : 
       'TIE!'
     } Red: ${redTotal}, Blue: ${blueTotal}`);
   };
+  
+  // Start recording match video/audio
+  const startRecording = useCallback(() => {
+    // Create a combined stream from camera and audio (if available)
+    const tracks: MediaStreamTrack[] = [];
+    
+    if (cameraStream) {
+      cameraStream.getVideoTracks().forEach(track => tracks.push(track));
+    }
+    if (audioStream) {
+      audioStream.getAudioTracks().forEach(track => tracks.push(track));
+    }
+    
+    if (tracks.length === 0) {
+      setRecordingStatus('No camera or microphone available for recording');
+      return;
+    }
+    
+    const combinedStream = new MediaStream(tracks);
+    
+    try {
+      // Try to use WebM with VP9/Opus codecs for better quality, with fallbacks
+      let mimeType = 'video/webm;codecs=vp9,opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        // 2.5 Mbps provides a good balance between quality and file size for match recordings
+        // (720p quality at ~3 minutes match duration = ~55MB file)
+        videoBitsPerSecond: 2500000,
+      });
+      
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setRecordedBlobUrl(url);
+        setRecordedMatchNumber(matchHistory.length + 1);
+        setRecordingStatus('Recording saved! Click download to save.');
+        setIsRecording(false);
+      };
+      
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setRecordingStatus('Recording error occurred');
+        setIsRecording(false);
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000); // Collect data every second
+      setIsRecording(true);
+      setRecordingStatus('🔴 Recording match...');
+      
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      setRecordingStatus('Failed to start recording: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }, [cameraStream, audioStream, matchHistory.length]);
+  
+  // Stop recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setRecordingStatus('Processing recording...');
+    }
+  }, []);
+  
+  // Download recorded match
+  const downloadRecording = useCallback(() => {
+    if (!recordedBlobUrl) return;
+    
+    // Sanitize eventName for safe filename (remove special characters)
+    const safeEventName = eventName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    const a = document.createElement('a');
+    a.href = recordedBlobUrl;
+    a.download = `match_${recordedMatchNumber || 'unknown'}_${safeEventName}_${new Date().toISOString().slice(0, 10)}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [recordedBlobUrl, recordedMatchNumber, eventName]);
+  
+  // Clear recorded video
+  const clearRecording = useCallback(() => {
+    if (recordedBlobUrl) {
+      URL.revokeObjectURL(recordedBlobUrl);
+    }
+    setRecordedBlobUrl(null);
+    setRecordedMatchNumber(null);
+    setRecordingStatus('');
+  }, [recordedBlobUrl]);
 
   // Load available cameras
   useEffect(() => {
@@ -827,6 +943,9 @@ function HostPageContent() {
     waitingForSound.current = true;
     setActionStatus('Match starting with countdown...');
     
+    // Clear any previous recording
+    clearRecording();
+    
     // Use constants for countdown sequence
     const countdownNumbers = MATCH_TIMING.COUNTDOWN_NUMBERS;
     let countdownIndex = 0;
@@ -849,6 +968,9 @@ function HostPageContent() {
       setTimerRunning(true);
       setTimerPaused(false);
       waitingForSound.current = false;
+      
+      // Start recording the match
+      startRecording();
       
       // Sync match state and timer
       hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
@@ -890,6 +1012,9 @@ function HostPageContent() {
     setMatchPhase('NOT_STARTED');
     waitingForSound.current = false;
     stopAll();
+    
+    // Stop recording if active
+    stopRecording();
     
     try {
       await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
@@ -1395,6 +1520,86 @@ function HostPageContent() {
             
             <p className="text-xs text-gray-500">
               <strong>Note:</strong> Audio streaming uses WebRTC for low-latency transmission. The display view will automatically receive audio when connected.
+            </p>
+          </div>
+        </div>
+        
+        {/* Match Recording */}
+        <div className="bg-white rounded-lg p-4 shadow">
+          <h3 className="text-lg font-bold mb-3">🎬 Match Recording</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Automatically records video and audio from when the match starts until final scores are released.
+          </p>
+          <div className="space-y-3">
+            {/* Recording status */}
+            {recordingStatus && (
+              <div className={`p-3 rounded text-sm ${
+                isRecording 
+                  ? 'bg-red-100 text-red-800 border border-red-300' 
+                  : recordedBlobUrl 
+                    ? 'bg-green-100 text-green-800 border border-green-300'
+                    : 'bg-gray-100 text-gray-700'
+              }`}>
+                {isRecording && <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>}
+                {recordingStatus}
+              </div>
+            )}
+            
+            {/* Recording controls */}
+            <div className="flex gap-2 items-center flex-wrap">
+              {isRecording && (
+                <button
+                  onClick={stopRecording}
+                  className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
+                >
+                  ⏹️ Stop Recording
+                </button>
+              )}
+              
+              {recordedBlobUrl && (
+                <>
+                  <button
+                    onClick={downloadRecording}
+                    className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700"
+                  >
+                    ⬇️ Download Match {recordedMatchNumber}
+                  </button>
+                  <button
+                    onClick={clearRecording}
+                    className="px-4 py-2 bg-gray-600 text-white rounded font-bold hover:bg-gray-700"
+                  >
+                    🗑️ Clear
+                  </button>
+                </>
+              )}
+              
+              {!isRecording && !recordedBlobUrl && (cameraStream || audioStream) && (
+                <div className="text-sm text-gray-500">
+                  ✅ Ready to record - Recording will start automatically when match begins
+                </div>
+              )}
+              
+              {!isRecording && !recordedBlobUrl && !cameraStream && !audioStream && (
+                <div className="text-sm text-yellow-600">
+                  ⚠️ Enable camera or microphone to record matches
+                </div>
+              )}
+            </div>
+            
+            {/* Preview recorded video */}
+            {recordedBlobUrl && (
+              <div className="mt-3">
+                <video
+                  src={recordedBlobUrl}
+                  controls
+                  className="w-full rounded border"
+                  style={{ maxHeight: '200px' }}
+                />
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500">
+              <strong>Note:</strong> Recordings are saved locally in your browser. Download them to keep them permanently.
             </p>
           </div>
         </div>
