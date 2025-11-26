@@ -17,7 +17,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -122,10 +122,11 @@ function useAudioService() {
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
   
   useEffect(() => {
-    // Preload audio files
+    // Preload audio files and set volume for sound effects
     Object.entries(AUDIO_FILES).forEach(([key, path]) => {
       const audio = new Audio(path);
       audio.preload = 'auto';
+      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS; // Set sound effects to full volume
       audioRefs.current[key] = audio;
     });
     
@@ -145,6 +146,8 @@ function useAudioService() {
       // Clear any previous onended handler
       audio.onended = null;
       audio.currentTime = 0;
+      // Ensure volume is set to full for sound effects
+      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
       
       if (onEnded) {
         // Use addEventListener for more reliable callback

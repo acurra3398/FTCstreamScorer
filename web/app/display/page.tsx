@@ -190,9 +190,11 @@ function DisplayPageContent() {
             // Attempt to reconnect if we haven't exceeded max attempts
             if (audioReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
               audioReconnectAttemptsRef.current++;
-              // Clear the last SDP offer to force re-connection on next poll
-              lastSdpOfferRef.current = '';
               console.log(`Audio reconnect attempt ${audioReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
+              // Clear the last SDP offer after a delay to force re-connection on next poll
+              setTimeout(() => {
+                lastSdpOfferRef.current = '';
+              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
             }
           }
         };
@@ -201,8 +203,10 @@ function DisplayPageContent() {
         pc.oniceconnectionstatechange = () => {
           console.log('Audio ICE connection state:', pc.iceConnectionState);
           if (pc.iceConnectionState === 'failed') {
-            // ICE connection failed, trigger reconnect
-            lastSdpOfferRef.current = '';
+            // ICE connection failed, trigger reconnect with delay
+            setTimeout(() => {
+              lastSdpOfferRef.current = '';
+            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
           }
         };
         
@@ -339,9 +343,11 @@ function DisplayPageContent() {
             // Attempt to reconnect if we haven't exceeded max attempts
             if (videoReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
               videoReconnectAttemptsRef.current++;
-              // Clear the last SDP offer to force re-connection on next poll
-              lastVideoSdpOfferRef.current = '';
               console.log(`Video reconnect attempt ${videoReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
+              // Clear the last SDP offer after a delay to force re-connection on next poll
+              setTimeout(() => {
+                lastVideoSdpOfferRef.current = '';
+              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
             } else {
               setVideoConnectionStatus('Connection failed - please refresh the page');
             }
@@ -352,9 +358,11 @@ function DisplayPageContent() {
         pc.oniceconnectionstatechange = () => {
           console.log('Video ICE connection state:', pc.iceConnectionState);
           if (pc.iceConnectionState === 'failed') {
-            // ICE connection failed, trigger reconnect
+            // ICE connection failed, trigger reconnect with delay
             setVideoConnectionStatus('ICE connection failed - reconnecting...');
-            lastVideoSdpOfferRef.current = '';
+            setTimeout(() => {
+              lastVideoSdpOfferRef.current = '';
+            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
           }
         };
         
