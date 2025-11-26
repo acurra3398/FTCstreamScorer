@@ -189,6 +189,29 @@ export function calculateTotalWithPenalties(score: DecodeScore, opponentScore: D
   return Math.max(0, total);
 }
 
+// Calculate precise timer remaining based on sync timestamp
+// This accounts for network delay by using the server's last sync time
+export function calculatePreciseTimerSeconds(event: EventData): number {
+  let seconds = event.timer_seconds_remaining ?? 30;
+  
+  // If timer is running and we have a sync timestamp, calculate the real remaining time
+  if (event.timer_last_sync && event.timer_running && !event.timer_paused) {
+    const syncTime = new Date(event.timer_last_sync).getTime();
+    const now = Date.now();
+    const elapsedSinceSync = Math.floor((now - syncTime) / 1000);
+    seconds = Math.max(0, seconds - elapsedSinceSync);
+  }
+  
+  return seconds;
+}
+
+// Format time as M:SS
+export function formatTimeDisplay(seconds: number): string {
+  const mins = Math.floor(Math.max(0, seconds) / 60);
+  const secs = Math.max(0, seconds) % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 // Extract score from event data
 export function extractRedScore(event: EventData): DecodeScore {
   return {

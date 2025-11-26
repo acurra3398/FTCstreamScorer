@@ -434,20 +434,28 @@ function HostPageContent() {
     // Play countdown audio and sync countdown numbers
     playAudio('countdown');
     
-    // 5-4-3-2-1 countdown - each number lasts ~1 second (total ~5 seconds for countdown.wav)
-    const countdownNumbers = [5, 4, 3, 2, 1];
+    // Use constants for countdown sequence
+    const countdownNumbers = MATCH_TIMING.COUNTDOWN_NUMBERS;
     let countdownIndex = 0;
     
-    // Start countdown display
-    const showCountdown = async () => {
+    // Show first countdown number immediately
+    hostActionAPI(eventName, password, 'setCountdown', { 
+      countdownNumber: countdownNumbers[countdownIndex] 
+    }).catch(console.error);
+    countdownIndex++;
+    
+    // Use setInterval for consistent timing (more reliable than recursive setTimeout)
+    const countdownInterval = setInterval(async () => {
       if (countdownIndex < countdownNumbers.length) {
         const currentNumber = countdownNumbers[countdownIndex];
         // Sync countdown to database for display and referee tablets
         hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: currentNumber }).catch(console.error);
         countdownIndex++;
-        setTimeout(showCountdown, 1000);
       } else {
-        // Countdown finished - clear the countdown display and start match
+        // Countdown finished - clear interval and start match
+        clearInterval(countdownInterval);
+        
+        // Clear the countdown display
         await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
         
         // Play match start sound
@@ -467,10 +475,7 @@ function HostPageContent() {
           }).catch(console.error);
         });
       }
-    };
-    
-    // Start the countdown
-    showCountdown();
+    }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS);
   };
 
   // Stop match

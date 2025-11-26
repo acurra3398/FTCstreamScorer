@@ -10,6 +10,8 @@ import {
   extractRedScore, 
   extractBlueScore,
   calculateTotalWithPenalties,
+  calculatePreciseTimerSeconds,
+  formatTimeDisplay,
 } from '@/lib/supabase';
 import { COLORS, LAYOUT, MATCH_TIMING } from '@/lib/constants';
 
@@ -25,6 +27,37 @@ async function fetchEventAPI(eventName: string): Promise<EventData | null> {
   } catch (error) {
     console.error('Error fetching event:', error);
     return null;
+  }
+}
+
+// Allowed domains for livestream URLs (to prevent XSS)
+const ALLOWED_LIVESTREAM_DOMAINS = [
+  'youtube.com',
+  'www.youtube.com',
+  'youtu.be',
+  'youtube-nocookie.com',
+  'www.youtube-nocookie.com',
+  'twitch.tv',
+  'www.twitch.tv',
+  'player.twitch.tv',
+  'vimeo.com',
+  'player.vimeo.com',
+];
+
+// Validate livestream URL to prevent XSS
+function isValidLivestreamUrl(url: string): boolean {
+  if (!url) return false;
+  
+  try {
+    const parsed = new URL(url);
+    // Must be https
+    if (parsed.protocol !== 'https:') return false;
+    // Must be from allowed domain
+    return ALLOWED_LIVESTREAM_DOMAINS.some(domain => 
+      parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -65,36 +98,8 @@ function DisplayPageContent() {
 
   // Calculate timer display based on event data with precise sync
   const updateTimerDisplay = (data: EventData) => {
-    if (!data.timer_running) {
-      const seconds = data.timer_seconds_remaining ?? MATCH_TIMING.AUTO_DURATION;
-      setTimerDisplay(formatTime(seconds));
-      return;
-    }
-    
-    if (data.timer_paused) {
-      const seconds = data.timer_seconds_remaining ?? 0;
-      setTimerDisplay(formatTime(seconds));
-      return;
-    }
-    
-    // Calculate precise time remaining based on sync timestamp
-    let seconds = data.timer_seconds_remaining ?? 0;
-    
-    if (data.timer_last_sync && data.timer_running && !data.timer_paused) {
-      const syncTime = new Date(data.timer_last_sync).getTime();
-      const now = Date.now();
-      const elapsedSinceSync = Math.floor((now - syncTime) / 1000);
-      seconds = Math.max(0, seconds - elapsedSinceSync);
-    }
-    
-    setTimerDisplay(formatTime(seconds));
-  };
-
-  // Format time as M:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(Math.max(0, seconds) / 60);
-    const secs = Math.max(0, seconds) % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const seconds = calculatePreciseTimerSeconds(data);
+    setTimerDisplay(formatTimeDisplay(seconds));
   };
 
   // Connect to event
@@ -321,13 +326,34 @@ function DisplayPageContent() {
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: COLORS.BLACK }}
         >
-          {eventData?.livestream_url ? (
+          {eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
             <iframe
               src={eventData.livestream_url}
               className="w-full h-full border-0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-presentation"
             />
+          ) : eventData?.livestream_url ? (
+            <div className="text-yellow-500 text-center">
+              <div 
+                className="font-bold mb-2"
+                style={{ 
+                  fontSize: '32px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                ⚠️ Invalid Stream URL
+              </div>
+              <div 
+                style={{ 
+                  fontSize: '18px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                Only YouTube, Twitch, and Vimeo URLs are supported
+              </div>
+            </div>
           ) : (
             <div className="text-gray-500 text-center">
               <div 

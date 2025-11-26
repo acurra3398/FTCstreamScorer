@@ -14,6 +14,8 @@ import {
   extractRedScore, 
   extractBlueScore,
   calculateTotalWithPenalties,
+  calculatePreciseTimerSeconds,
+  formatTimeDisplay,
 } from '@/lib/supabase';
 
 // API helper functions - all calls go through server-side API routes
@@ -117,27 +119,6 @@ function ScoringPageContent() {
   const [timerDisplay, setTimerDisplay] = useState('--:--');
   const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
 
-  // Format time as M:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(Math.max(0, seconds) / 60);
-    const secs = Math.max(0, seconds) % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Calculate precise time remaining based on sync timestamp
-  const calculatePreciseTime = (data: EventData): number => {
-    let seconds = data.timer_seconds_remaining ?? 30;
-    
-    if (data.timer_last_sync && data.timer_running && !data.timer_paused) {
-      const syncTime = new Date(data.timer_last_sync).getTime();
-      const now = Date.now();
-      const elapsedSinceSync = Math.floor((now - syncTime) / 1000);
-      seconds = Math.max(0, seconds - elapsedSinceSync);
-    }
-    
-    return seconds;
-  };
-
   // Verify and connect to event
   useEffect(() => {
     async function connect() {
@@ -167,7 +148,7 @@ function ScoringPageContent() {
         setEventData(data);
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
-        setTimerDisplay(formatTime(calculatePreciseTime(data)));
+        setTimerDisplay(formatTimeDisplay(calculatePreciseTimerSeconds(data)));
         setCountdownDisplay(data.countdown_number ?? null);
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
@@ -203,7 +184,7 @@ function ScoringPageContent() {
             setRedScore(extractRedScore(data));
           }
           // Sync timer display from host with precise timing
-          setTimerDisplay(formatTime(calculatePreciseTime(data)));
+          setTimerDisplay(formatTimeDisplay(calculatePreciseTimerSeconds(data)));
           setCountdownDisplay(data.countdown_number ?? null);
           setLastSync(new Date().toLocaleTimeString());
         }
