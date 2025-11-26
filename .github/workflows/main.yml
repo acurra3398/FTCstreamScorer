@@ -1,6 +1,6 @@
-# GitHub Actions Workflow Example
-# Save this file as .github/workflows/build-installers.yml to automatically
-# build installers for all platforms when you push to GitHub
+# GitHub Actions Workflow
+# Automatically builds installers for all platforms when you push to GitHub
+# The Windows .exe installer in Output/ is automatically updated on pushes to main
 
 name: Build Installers
 
@@ -35,7 +35,7 @@ jobs:
             --output target/runtime-image `
             --strip-debug --no-header-files --no-man-pages --compress=2
       
-      - name: Build Windows installer
+      - name: Build Windows MSI installer
         run: |
           mkdir -p target/installer
           jpackage --type msi --input target --name "FTCStreamScorer" `
@@ -44,11 +44,25 @@ jobs:
             --app-version "1.0.0" --vendor "Hercules Robotics" `
             --win-menu --win-shortcut
       
-      - name: Upload Windows installer
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+      
+      - name: Build Windows EXE installer with Inno Setup
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" script.iss
+        shell: pwsh
+      
+      - name: Upload Windows MSI installer
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
+          name: windows-installer-msi
           path: target/installer/*.msi
+      
+      - name: Upload Windows EXE installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-exe
+          path: Output/FTCStreamScorer-Setup.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -124,7 +138,36 @@ jobs:
           name: macos-installer
           path: target/installer/*.dmg
 
-  # Optional: Create a release with all installers
+  # Update the Output folder with the latest Windows EXE installer
+  update-installer:
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Windows EXE installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer-exe
+          path: Output/
+      
+      - name: Commit and push updated installer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Output/FTCStreamScorer-Setup.exe
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Windows installer [skip ci]"
+            git push
+          fi
+
+  # Create a release with all installers when a version tag is pushed
   release:
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
@@ -139,7 +182,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            installers/windows-installer/*.msi
+            installers/windows-installer-msi/*.msi
+            installers/windows-installer-exe/*.exe
             installers/linux-installer/*.deb
             installers/macos-installer/*.dmg
         env:

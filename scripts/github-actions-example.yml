@@ -1,6 +1,11 @@
 # GitHub Actions Workflow Example
-# Save this file as .github/workflows/build-installers.yml to automatically
-# build installers for all platforms when you push to GitHub
+# NOTE: This is an example file. The active workflow is at .github/workflows/main.yml
+# 
+# This example shows the basic structure for building installers.
+# The active workflow includes additional features:
+# - Automatic update of the Windows .exe installer in Output/ folder
+# - Inno Setup support for Windows .exe installers
+# - Automatic release creation when version tags are pushed
 
 name: Build Installers
 
