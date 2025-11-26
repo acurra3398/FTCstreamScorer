@@ -10,6 +10,8 @@ import {
   extractRedScore, 
   extractBlueScore,
   calculateTotalWithPenalties,
+  calculatePreciseTimerSeconds,
+  formatTimeDisplay,
 } from '@/lib/supabase';
 import { COLORS, LAYOUT, MATCH_TIMING } from '@/lib/constants';
 
@@ -28,25 +30,60 @@ async function fetchEventAPI(eventName: string): Promise<EventData | null> {
   }
 }
 
+// Allowed domains for livestream URLs (to prevent XSS)
+const ALLOWED_LIVESTREAM_DOMAINS = [
+  'youtube.com',
+  'www.youtube.com',
+  'youtu.be',
+  'youtube-nocookie.com',
+  'www.youtube-nocookie.com',
+  'twitch.tv',
+  'www.twitch.tv',
+  'player.twitch.tv',
+  'vimeo.com',
+  'player.vimeo.com',
+];
+
+// Validate livestream URL to prevent XSS
+function isValidLivestreamUrl(url: string): boolean {
+  if (!url) return false;
+  
+  try {
+    const parsed = new URL(url);
+    // Must be https
+    if (parsed.protocol !== 'https:') return false;
+    // Must be from allowed domain
+    return ALLOWED_LIVESTREAM_DOMAINS.some(domain => 
+      parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Display page for OBS Browser Source
- * Supports two modes via URL parameter:
+ * Supports three modes via URL parameter:
  * - ?mode=overlay - Transparent background, just the score bar (for OBS overlay)
  * - ?mode=full (default) - Full display with colored panels
+ * - ?mode=camera - Full 1920x1080 display with host camera and scores at bottom
  * 
  * OBS Setup:
  * 1. Add Browser Source
- * 2. URL: https://yoursite.com/display?event=EVENT_NAME&mode=overlay
- * 3. Width: 1920 (or your stream width)
- * 4. Height: 1080 (or your stream height)
+ * 2. URL: https://yoursite.com/display?event=EVENT_NAME&mode=camera
+ * 3. Width: 1920
+ * 4. Height: 1080
  * 5. Enable "Shutdown source when not visible" for performance
  */
 function DisplayPageContent() {
   const searchParams = useSearchParams();
   const eventName = searchParams.get('event') || '';
-  // Validate display mode parameter - only allow 'full' or 'overlay'
+  // Validate display mode parameter - allow 'full', 'overlay', or 'camera'
   const modeParam = searchParams.get('mode') || 'full';
-  const displayMode = modeParam === 'overlay' ? 'overlay' : 'full';
+  const displayMode = modeParam === 'overlay' ? 'overlay' : modeParam === 'camera' ? 'camera' : 'full';
+  
+  // Countdown state for pre-match countdown display
+  const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,29 +96,10 @@ function DisplayPageContent() {
   // Timer state (synchronized from host)
   const [timerDisplay, setTimerDisplay] = useState('--:--');
 
-  // Calculate timer display based on event data
+  // Calculate timer display based on event data with precise sync
   const updateTimerDisplay = (data: EventData) => {
-    if (!data.timer_running) {
-      const seconds = data.timer_seconds_remaining ?? MATCH_TIMING.AUTO_DURATION;
-      setTimerDisplay(formatTime(seconds));
-      return;
-    }
-    
-    if (data.timer_paused && data.timer_paused_at) {
-      const seconds = data.timer_seconds_remaining ?? 0;
-      setTimerDisplay(formatTime(seconds));
-      return;
-    }
-    
-    const seconds = data.timer_seconds_remaining ?? 0;
-    setTimerDisplay(formatTime(seconds));
-  };
-
-  // Format time as M:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(Math.max(0, seconds) / 60);
-    const secs = Math.max(0, seconds) % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const seconds = calculatePreciseTimerSeconds(data);
+    setTimerDisplay(formatTimeDisplay(seconds));
   };
 
   // Connect to event
@@ -104,6 +122,7 @@ function DisplayPageContent() {
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
         updateTimerDisplay(data);
+        setCountdownDisplay(data.countdown_number ?? null);
         setIsConnected(true);
         
       } catch (err) {
@@ -128,6 +147,8 @@ function DisplayPageContent() {
           setRedScore(extractRedScore(data));
           setBlueScore(extractBlueScore(data));
           updateTimerDisplay(data);
+          // Update countdown display from database
+          setCountdownDisplay(data.countdown_number ?? null);
         }
       } catch (err) {
         console.error('Sync error:', err);
@@ -174,6 +195,7 @@ function DisplayPageContent() {
               <select name="mode" className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg">
                 <option value="full">Full Display (with colored panels)</option>
                 <option value="overlay">Overlay Only (for OBS - transparent background)</option>
+                <option value="camera">Camera + Scores (1920x1080 with host camera)</option>
               </select>
             </div>
             <button
@@ -262,6 +284,115 @@ function DisplayPageContent() {
             motif={eventData?.motif || 'PPG'}
             matchPhase={eventData?.match_state || 'NOT_STARTED'}
             timeDisplay={timerDisplay}
+            countdownNumber={countdownDisplay}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Camera mode - 1920x1080 aspect ratio with host camera and scores at bottom
+  if (displayMode === 'camera') {
+    return (
+      <div 
+        className="flex flex-col overflow-hidden"
+        style={{ 
+          width: '1920px',
+          height: '1080px',
+          backgroundColor: COLORS.BLACK,
+        }}
+      >
+        {/* Countdown overlay */}
+        {countdownDisplay !== null && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+          >
+            <div 
+              className="text-white font-bold animate-pulse"
+              style={{ 
+                fontSize: '300px',
+                fontFamily: 'Arial, sans-serif',
+                textShadow: '0 0 50px rgba(255, 255, 255, 0.5)',
+              }}
+            >
+              {countdownDisplay}
+            </div>
+          </div>
+        )}
+        
+        {/* Host Camera / Video Area - takes up most of the screen */}
+        <div 
+          className="flex-1 flex items-center justify-center relative"
+          style={{ backgroundColor: COLORS.BLACK }}
+        >
+          {eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
+            <iframe
+              src={eventData.livestream_url}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+            />
+          ) : eventData?.livestream_url ? (
+            <div className="text-yellow-500 text-center">
+              <div 
+                className="font-bold mb-2"
+                style={{ 
+                  fontSize: '32px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                ⚠️ Invalid Stream URL
+              </div>
+              <div 
+                style={{ 
+                  fontSize: '18px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                Only YouTube, Twitch, and Vimeo URLs are supported
+              </div>
+            </div>
+          ) : (
+            <div className="text-gray-500 text-center">
+              <div 
+                className="font-bold mb-2"
+                style={{ 
+                  fontSize: '48px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                📹 No Camera Feed
+              </div>
+              <div 
+                style={{ 
+                  fontSize: '24px',
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                Set livestream URL in host controls
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Score Bar at bottom - fixed height ~182px for 1080p (16.88%) */}
+        <div 
+          className="w-full flex-shrink-0"
+          style={{ height: '182px' }}
+        >
+          <ScoreBar
+            redScore={redScore}
+            blueScore={blueScore}
+            redTeam1={eventData?.red_team1 || ''}
+            redTeam2={eventData?.red_team2 || ''}
+            blueTeam1={eventData?.blue_team1 || ''}
+            blueTeam2={eventData?.blue_team2 || ''}
+            motif={eventData?.motif || 'PPG'}
+            matchPhase={eventData?.match_state || 'NOT_STARTED'}
+            timeDisplay={timerDisplay}
+            countdownNumber={countdownDisplay}
           />
         </div>
       </div>
@@ -429,6 +560,7 @@ function DisplayPageContent() {
             motif={eventData?.motif || 'PPG'}
             matchPhase={eventData?.match_state || 'NOT_STARTED'}
             timeDisplay={timerDisplay}
+            countdownNumber={countdownDisplay}
           />
         </div>
       </div>

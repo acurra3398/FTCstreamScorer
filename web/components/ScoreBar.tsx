@@ -14,6 +14,7 @@ interface ScoreBarProps {
   motif: string;
   matchPhase: string;
   timeDisplay: string;
+  countdownNumber?: number | null;
 }
 
 /**
@@ -35,6 +36,7 @@ export default function ScoreBar({
   motif,
   matchPhase,
   timeDisplay,
+  countdownNumber,
 }: ScoreBarProps) {
   const redTotal = calculateTotalWithPenalties(redScore, blueScore);
   const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
@@ -129,7 +131,7 @@ export default function ScoreBar({
 
       {/* Center Info Box - Timer/Phase/Motif (~14.5% width, centered) */}
       <div 
-        className="flex flex-col items-center justify-center"
+        className="flex flex-col items-center justify-center relative"
         style={{ 
           backgroundColor: COLORS.WHITE,
           width: '14.5%',
@@ -140,6 +142,24 @@ export default function ScoreBar({
           padding: '0.5vh 1vw',
         }}
       >
+        {/* Countdown overlay */}
+        {countdownNumber !== null && countdownNumber !== undefined && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center z-10"
+            style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+          >
+            <span 
+              className="font-bold text-red-600 animate-pulse"
+              style={{ 
+                fontSize: 'clamp(48px, 8vh, 120px)',
+                fontFamily: 'Arial, sans-serif',
+              }}
+            >
+              {countdownNumber}
+            </span>
+          </div>
+        )}
+        
         {/* Timer - 60% of overlay height */}
         <span 
           className="font-bold text-black leading-none"
