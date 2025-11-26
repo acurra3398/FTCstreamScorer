@@ -34,12 +34,12 @@ import java.util.prefs.Preferences;
 public class CloudSyncService {
     
     // Environment variable names for configuration
-    private static final String ENV_SUPABASE_URL = "SUPABASE_URL";
-    private static final String ENV_SUPABASE_KEY = "SUPABASE_KEY";
+    private static final String ENV_SUPABASE_URL = "https://cpuadjnzgjqypgpysccj.supabase.co";
+    private static final String ENV_SUPABASE_KEY = "sb_secret_RFI7rQyHhYCwBK81j45UpA_yqTvhFRc";
     
     // Preferences keys for storing user-configured settings
-    private static final String PREF_SUPABASE_URL = "supabase_url";
-    private static final String PREF_SUPABASE_KEY = "supabase_key";
+    private static final String PREF_SUPABASE_URL = "https://cpuadjnzgjqypgpysccj.supabase.co";
+    private static final String PREF_SUPABASE_KEY = "sb_secret_RFI7rQyHhYCwBK81j45UpA_yqTvhFRc";
     
     private final Match match;
     private final HttpClient httpClient;
