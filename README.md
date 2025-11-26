@@ -60,12 +60,12 @@ If installers aren't available for your platform, you can run the JAR file direc
 | Feature | Description |
 |---------|-------------|
 | 📺 **Dual-Window Design** | Separate control panel and stream display |
-| 🎥 **Webcam Integration** | Show your field camera with scoring overlay |
+| 🎥 **HD Webcam Integration** | 1080p @ 60fps webcam with scoring overlay |
 | ⏱️ **Authentic Timing** | Official FTC match timing (30s Auto, 120s TeleOp) |
 | 🔊 **Official Sounds** | Real FTC countdown and match sounds |
 | 🏆 **DECODE Scoring** | Full 2025-2026 season rules built-in |
 | 💾 **Works Offline** | No internet or login required |
-| 🎬 **Winner Videos** | Play celebration videos before final results |
+| 🎬 **Winner Videos** | Play celebration videos with audio before final results |
 | 📡 **Wireless Sync** | Multiple devices can score together |
 
 ---
@@ -114,8 +114,21 @@ When you click "Show Final Results", the app can play a celebration video before
    - **MP4** (H.264 codec)
    - **Resolution:** 1280x720 or 1920x1080
    - **Duration:** 5-15 seconds
+   - **Audio:** Include audio track for celebration sounds! 🔊
 
 If videos are not found, the final results will display immediately.
+
+---
+
+## 📹 Webcam Settings
+
+The app automatically uses the highest quality settings supported by your webcam:
+
+- **Target Resolution:** 1920x1080 (1080p) - falls back to best available
+- **Target Frame Rate:** 60 FPS for smooth video
+- **Smooth Scaling:** Enabled for better video quality
+
+The webcam will automatically select the best supported resolution if your camera doesn't support 1080p.
 
 ---
 
