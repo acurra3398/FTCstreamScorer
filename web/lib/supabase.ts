@@ -48,6 +48,12 @@ export interface EventData {
   // Camera livestream URL
   livestream_url: string;
   
+  // Audio streaming for announcer (WebRTC signaling)
+  audio_enabled?: boolean;
+  audio_ice_candidates?: string;
+  audio_sdp_offer?: string;
+  audio_sdp_answer?: string;
+  
   // Team info
   red_team1: string;
   red_team2: string;
@@ -191,6 +197,59 @@ export function calculateTotalWithPenalties(score: DecodeScore, opponentScore: D
   total += opponentScore.majorFouls * 15;
   total += opponentScore.minorFouls * 5;
   return Math.max(0, total);
+}
+
+// Score breakdown interface for detailed display
+export interface ScoreBreakdown {
+  autoLeave: number;        // Points from robot leave in auto
+  autoClassified: number;   // Points from classified samples in auto
+  autoOverflow: number;     // Points from overflow in auto
+  autoPattern: number;      // Points from pattern in auto
+  autoTotal: number;        // Total auto points
+  teleopClassified: number; // Points from classified samples in teleop
+  teleopOverflow: number;   // Points from overflow in teleop
+  teleopDepot: number;      // Points from depot in teleop
+  teleopPattern: number;    // Points from pattern in teleop
+  teleopTotal: number;      // Total teleop points
+  endgameBase: number;      // Points from BASE return
+  penaltyPoints: number;    // Points from opponent fouls
+  totalScore: number;       // Final total score
+}
+
+// Calculate detailed score breakdown for display
+export function calculateScoreBreakdown(score: DecodeScore, opponentScore: DecodeScore): ScoreBreakdown {
+  const autoLeave = (score.robot1Leave ? 3 : 0) + (score.robot2Leave ? 3 : 0);
+  const autoClassified = score.autoClassified * 3;
+  const autoOverflow = score.autoOverflow * 1;
+  const autoPattern = score.autoPatternMatches * 2;
+  const autoTotal = autoLeave + autoClassified + autoOverflow + autoPattern;
+  
+  const teleopClassified = score.teleopClassified * 3;
+  const teleopOverflow = score.teleopOverflow * 1;
+  const teleopDepot = score.teleopDepot * 1;
+  const teleopPattern = score.teleopPatternMatches * 2;
+  const teleopTotal = teleopClassified + teleopOverflow + teleopDepot + teleopPattern;
+  
+  const endgameBase = calculateBasePoints(score);
+  const penaltyPoints = (opponentScore.majorFouls * 15) + (opponentScore.minorFouls * 5);
+  
+  const totalScore = autoTotal + teleopTotal + endgameBase + penaltyPoints;
+  
+  return {
+    autoLeave,
+    autoClassified,
+    autoOverflow,
+    autoPattern,
+    autoTotal,
+    teleopClassified,
+    teleopOverflow,
+    teleopDepot,
+    teleopPattern,
+    teleopTotal,
+    endgameBase,
+    penaltyPoints,
+    totalScore,
+  };
 }
 
 // Calculate precise timer remaining based on sync timestamp

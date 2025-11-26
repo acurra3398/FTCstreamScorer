@@ -12,6 +12,7 @@ import {
   calculateTotalWithPenalties,
   calculatePreciseTimerSeconds,
   formatTimeDisplay,
+  calculateScoreBreakdown,
 } from '@/lib/supabase';
 import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES } from '@/lib/constants';
 
@@ -91,6 +92,11 @@ function DisplayPageContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   
+  // Audio streaming receiver state
+  const announcerAudioRef = useRef<HTMLAudioElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const lastSdpOfferRef = useRef<string>('');
+  
   // Track if we've already triggered the video for this score release
   const hasTriggeredVideo = useRef(false);
 
@@ -110,6 +116,83 @@ function DisplayPageContent() {
     const seconds = calculatePreciseTimerSeconds(data);
     setTimerDisplay(formatTimeDisplay(seconds));
   };
+  
+  // Handle WebRTC audio streaming from host
+  useEffect(() => {
+    async function handleAudioStreaming(data: EventData) {
+      // Check if audio is enabled and we have an SDP offer
+      if (!data.audio_enabled || !data.audio_sdp_offer) {
+        // Audio disabled - cleanup
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close();
+          peerConnectionRef.current = null;
+        }
+        lastSdpOfferRef.current = '';
+        return;
+      }
+      
+      // Check if this is a new offer
+      if (data.audio_sdp_offer === lastSdpOfferRef.current) {
+        return; // Same offer, no action needed
+      }
+      
+      lastSdpOfferRef.current = data.audio_sdp_offer;
+      
+      try {
+        // Create peer connection for receiving audio
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close();
+        }
+        
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        peerConnectionRef.current = pc;
+        
+        // Handle incoming audio track
+        pc.ontrack = (event) => {
+          if (announcerAudioRef.current && event.streams[0]) {
+            announcerAudioRef.current.srcObject = event.streams[0];
+            announcerAudioRef.current.play().catch(console.error);
+          }
+        };
+        
+        // Set remote description (the offer from host)
+        const offer = JSON.parse(data.audio_sdp_offer);
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        // Add ICE candidates from host
+        if (data.audio_ice_candidates) {
+          const candidates = JSON.parse(data.audio_ice_candidates);
+          for (const candidate of candidates) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+        }
+        
+        // Create answer
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        
+        // Send answer back to host via API
+        // Note: This would need a separate mechanism to update the event
+        // For now, we're using a simplified approach where the connection 
+        // is established through the SDP exchange
+      } catch (err) {
+        console.error('Error setting up audio receiver:', err);
+      }
+    }
+    
+    if (eventData) {
+      handleAudioStreaming(eventData);
+    }
+    
+    return () => {
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+    };
+  }, [eventData?.audio_enabled, eventData?.audio_sdp_offer, eventData?.audio_ice_candidates]);
   
   // Determine winner and show video when scores are released
   useEffect(() => {
@@ -355,6 +438,11 @@ function DisplayPageContent() {
           backgroundColor: COLORS.BLACK,
         }}
       >
+        {/* Hidden audio element for announcer audio streaming (camera mode) 
+            Note: This element only renders in camera mode. For full display mode, 
+            a similar element is rendered below. Only one mode is active at a time. */}
+        <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
+        
         {/* Countdown overlay */}
         {countdownDisplay !== null && (
           <div 
@@ -398,39 +486,39 @@ function DisplayPageContent() {
           
           {/* Final Results Display (after video) */}
           {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ backgroundColor: COLORS.BLACK }}>
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
               <div 
-                className="text-white font-bold mb-8"
+                className="text-white font-bold mb-4"
                 style={{ 
-                  fontSize: '72px',
+                  fontSize: '48px',
                   fontFamily: 'Arial, sans-serif',
                 }}
               >
                 🏆 FINAL RESULTS 🏆
               </div>
-              <div className="flex gap-32">
+              <div className="flex gap-16 mb-4">
                 <div className="text-center">
-                  <div className="text-red-500 font-bold mb-2" style={{ fontSize: '36px' }}>RED ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                  <div className="text-red-500 font-bold mb-1" style={{ fontSize: '28px' }}>RED ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: '80px' }}>
                     {calculateTotalWithPenalties(redScore, blueScore)}
                   </div>
-                  <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                  <div className="text-gray-400" style={{ fontSize: '18px' }}>
                     {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-blue-500 font-bold mb-2" style={{ fontSize: '36px' }}>BLUE ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                  <div className="text-blue-500 font-bold mb-1" style={{ fontSize: '28px' }}>BLUE ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: '80px' }}>
                     {calculateTotalWithPenalties(blueScore, redScore)}
                   </div>
-                  <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                  <div className="text-gray-400" style={{ fontSize: '18px' }}>
                     {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
                   </div>
                 </div>
               </div>
               <div 
-                className="text-yellow-400 font-bold mt-8 animate-pulse"
-                style={{ fontSize: '48px' }}
+                className="text-yellow-400 font-bold mb-4 animate-pulse"
+                style={{ fontSize: '36px' }}
               >
                 {calculateTotalWithPenalties(redScore, blueScore) > calculateTotalWithPenalties(blueScore, redScore) 
                   ? '🔴 RED WINS! 🔴' 
@@ -438,6 +526,141 @@ function DisplayPageContent() {
                     ? '🔵 BLUE WINS! 🔵'
                     : '🤝 TIE GAME! 🤝'
                 }
+              </div>
+              
+              {/* Score Breakdown Table */}
+              <div className="flex gap-8">
+                {/* Red Score Breakdown */}
+                {(() => {
+                  const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
+                  return (
+                    <div className="bg-red-900/50 rounded-lg p-4 min-w-[280px]">
+                      <div className="text-red-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>RED BREAKDOWN</div>
+                      <table className="w-full text-white" style={{ fontSize: '14px' }}>
+                        <tbody>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">🚗 Auto Leave</td>
+                            <td className="text-right font-bold">{redBreakdown.autoLeave}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">🟢 Auto Classified (×3)</td>
+                            <td className="text-right font-bold">{redBreakdown.autoClassified}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">➕ Auto Overflow</td>
+                            <td className="text-right font-bold">{redBreakdown.autoOverflow}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">✔ Auto Pattern (×2)</td>
+                            <td className="text-right font-bold">{redBreakdown.autoPattern}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50 bg-red-800/30">
+                            <td className="py-1 font-bold">Auto Subtotal</td>
+                            <td className="text-right font-bold">{redBreakdown.autoTotal}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">🟢 Teleop Classified (×3)</td>
+                            <td className="text-right font-bold">{redBreakdown.teleopClassified}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">➕ Teleop Overflow</td>
+                            <td className="text-right font-bold">{redBreakdown.teleopOverflow}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">📦 Teleop Depot</td>
+                            <td className="text-right font-bold">{redBreakdown.teleopDepot}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">✔ Teleop Pattern (×2)</td>
+                            <td className="text-right font-bold">{redBreakdown.teleopPattern}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50 bg-red-800/30">
+                            <td className="py-1 font-bold">Teleop Subtotal</td>
+                            <td className="text-right font-bold">{redBreakdown.teleopTotal}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">🏠 BASE Return</td>
+                            <td className="text-right font-bold">{redBreakdown.endgameBase}</td>
+                          </tr>
+                          <tr className="border-b border-red-700/50">
+                            <td className="py-1">⚠ Opponent Penalties</td>
+                            <td className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</td>
+                          </tr>
+                          <tr className="bg-red-700/50">
+                            <td className="py-2 font-bold text-lg">TOTAL</td>
+                            <td className="text-right font-bold text-lg">{redBreakdown.totalScore}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+                
+                {/* Blue Score Breakdown */}
+                {(() => {
+                  const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
+                  return (
+                    <div className="bg-blue-900/50 rounded-lg p-4 min-w-[280px]">
+                      <div className="text-blue-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>BLUE BREAKDOWN</div>
+                      <table className="w-full text-white" style={{ fontSize: '14px' }}>
+                        <tbody>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">🚗 Auto Leave</td>
+                            <td className="text-right font-bold">{blueBreakdown.autoLeave}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">🟢 Auto Classified (×3)</td>
+                            <td className="text-right font-bold">{blueBreakdown.autoClassified}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">➕ Auto Overflow</td>
+                            <td className="text-right font-bold">{blueBreakdown.autoOverflow}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">✔ Auto Pattern (×2)</td>
+                            <td className="text-right font-bold">{blueBreakdown.autoPattern}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50 bg-blue-800/30">
+                            <td className="py-1 font-bold">Auto Subtotal</td>
+                            <td className="text-right font-bold">{blueBreakdown.autoTotal}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">🟢 Teleop Classified (×3)</td>
+                            <td className="text-right font-bold">{blueBreakdown.teleopClassified}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">➕ Teleop Overflow</td>
+                            <td className="text-right font-bold">{blueBreakdown.teleopOverflow}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">📦 Teleop Depot</td>
+                            <td className="text-right font-bold">{blueBreakdown.teleopDepot}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">✔ Teleop Pattern (×2)</td>
+                            <td className="text-right font-bold">{blueBreakdown.teleopPattern}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50 bg-blue-800/30">
+                            <td className="py-1 font-bold">Teleop Subtotal</td>
+                            <td className="text-right font-bold">{blueBreakdown.teleopTotal}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">🏠 BASE Return</td>
+                            <td className="text-right font-bold">{blueBreakdown.endgameBase}</td>
+                          </tr>
+                          <tr className="border-b border-blue-700/50">
+                            <td className="py-1">⚠ Opponent Penalties</td>
+                            <td className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</td>
+                          </tr>
+                          <tr className="bg-blue-700/50">
+                            <td className="py-2 font-bold text-lg">TOTAL</td>
+                            <td className="text-right font-bold text-lg">{blueBreakdown.totalScore}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -473,24 +696,85 @@ function DisplayPageContent() {
                 </div>
               </div>
             ) : (
-              <div className="text-gray-500 text-center">
-                <div 
-                  className="font-bold mb-2"
-                  style={{ 
-                    fontSize: '48px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
-                  📹 Waiting for Match
-                </div>
-                <div 
-                  style={{ 
-                    fontSize: '24px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
-                  Display will show match when host starts
-                </div>
+              <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
+                {eventData?.match_state === 'NOT_STARTED' ? (
+                  <>
+                    <div 
+                      className="font-bold mb-4"
+                      style={{ 
+                        fontSize: '48px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      ⏳ Match Ready
+                    </div>
+                    <div 
+                      className="text-gray-500"
+                      style={{ 
+                        fontSize: '24px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      Waiting for host to start the match
+                    </div>
+                    <div 
+                      className="text-gray-600 mt-4"
+                      style={{ 
+                        fontSize: '16px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      Event: {eventName}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div 
+                      className="font-bold mb-4 text-green-400"
+                      style={{ 
+                        fontSize: '36px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      🟢 Match In Progress
+                    </div>
+                    <div 
+                      className="text-white font-bold"
+                      style={{ 
+                        fontSize: '72px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      {timerDisplay}
+                    </div>
+                    <div 
+                      className={`font-bold mt-2 ${
+                        eventData?.match_state === 'AUTONOMOUS' ? 'text-green-400' :
+                        eventData?.match_state === 'TRANSITION' ? 'text-yellow-400' :
+                        eventData?.match_state === 'TELEOP' ? 'text-blue-400' :
+                        eventData?.match_state === 'END_GAME' ? 'text-orange-400' :
+                        eventData?.match_state === 'FINISHED' ? 'text-red-400' :
+                        eventData?.match_state === 'UNDER_REVIEW' ? 'text-yellow-400' :
+                        'text-gray-400'
+                      }`}
+                      style={{ 
+                        fontSize: '28px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      {eventData?.match_state?.replace(/_/g, ' ')}
+                    </div>
+                    <div 
+                      className="text-gray-500 mt-6"
+                      style={{ 
+                        fontSize: '14px',
+                        fontFamily: 'Arial, sans-serif',
+                      }}
+                    >
+                      💡 Tip: Use this display as an OBS Browser Source overlay, or set a livestream URL in host controls
+                    </div>
+                  </>
+                )}
               </div>
             )
           )}
@@ -527,6 +811,11 @@ function DisplayPageContent() {
       {/* Hidden audio element for results sound */}
       <audio ref={audioRef} preload="auto" />
       
+      {/* Hidden audio element for announcer audio streaming (full display mode)
+          Note: This element only renders in full display mode. For camera mode,
+          a similar element is rendered above. Only one mode is active at a time. */}
+      <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
+      
       {/* Countdown overlay */}
       {countdownDisplay !== null && (
         <div 
@@ -562,39 +851,39 @@ function DisplayPageContent() {
       
       {/* Final Results Display (after video) */}
       {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ backgroundColor: COLORS.BLACK }}>
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
           <div 
-            className="text-white font-bold mb-8"
+            className="text-white font-bold mb-4"
             style={{ 
-              fontSize: '72px',
+              fontSize: '48px',
               fontFamily: 'Arial, sans-serif',
             }}
           >
             🏆 FINAL RESULTS 🏆
           </div>
-          <div className="flex gap-32">
+          <div className="flex gap-16 mb-4">
             <div className="text-center">
-              <div className="text-red-500 font-bold mb-2" style={{ fontSize: '36px' }}>RED ALLIANCE</div>
-              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+              <div className="text-red-500 font-bold mb-1" style={{ fontSize: '28px' }}>RED ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '80px' }}>
                 {redTotal}
               </div>
-              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+              <div className="text-gray-400" style={{ fontSize: '18px' }}>
                 {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-blue-500 font-bold mb-2" style={{ fontSize: '36px' }}>BLUE ALLIANCE</div>
-              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+              <div className="text-blue-500 font-bold mb-1" style={{ fontSize: '28px' }}>BLUE ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '80px' }}>
                 {blueTotal}
               </div>
-              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+              <div className="text-gray-400" style={{ fontSize: '18px' }}>
                 {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
               </div>
             </div>
           </div>
           <div 
-            className="text-yellow-400 font-bold mt-8 animate-pulse"
-            style={{ fontSize: '48px' }}
+            className="text-yellow-400 font-bold mb-4 animate-pulse"
+            style={{ fontSize: '36px' }}
           >
             {redTotal > blueTotal 
               ? '🔴 RED WINS! 🔴' 
@@ -602,6 +891,141 @@ function DisplayPageContent() {
                 ? '🔵 BLUE WINS! 🔵'
                 : '🤝 TIE GAME! 🤝'
             }
+          </div>
+          
+          {/* Score Breakdown Table */}
+          <div className="flex gap-8">
+            {/* Red Score Breakdown */}
+            {(() => {
+              const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
+              return (
+                <div className="bg-red-900/50 rounded-lg p-4 min-w-[280px]">
+                  <div className="text-red-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>RED BREAKDOWN</div>
+                  <table className="w-full text-white" style={{ fontSize: '14px' }}>
+                    <tbody>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">🚗 Auto Leave</td>
+                        <td className="text-right font-bold">{redBreakdown.autoLeave}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">🟢 Auto Classified (×3)</td>
+                        <td className="text-right font-bold">{redBreakdown.autoClassified}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">➕ Auto Overflow</td>
+                        <td className="text-right font-bold">{redBreakdown.autoOverflow}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">✔ Auto Pattern (×2)</td>
+                        <td className="text-right font-bold">{redBreakdown.autoPattern}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50 bg-red-800/30">
+                        <td className="py-1 font-bold">Auto Subtotal</td>
+                        <td className="text-right font-bold">{redBreakdown.autoTotal}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">🟢 Teleop Classified (×3)</td>
+                        <td className="text-right font-bold">{redBreakdown.teleopClassified}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">➕ Teleop Overflow</td>
+                        <td className="text-right font-bold">{redBreakdown.teleopOverflow}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">📦 Teleop Depot</td>
+                        <td className="text-right font-bold">{redBreakdown.teleopDepot}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">✔ Teleop Pattern (×2)</td>
+                        <td className="text-right font-bold">{redBreakdown.teleopPattern}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50 bg-red-800/30">
+                        <td className="py-1 font-bold">Teleop Subtotal</td>
+                        <td className="text-right font-bold">{redBreakdown.teleopTotal}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">🏠 BASE Return</td>
+                        <td className="text-right font-bold">{redBreakdown.endgameBase}</td>
+                      </tr>
+                      <tr className="border-b border-red-700/50">
+                        <td className="py-1">⚠ Opponent Penalties</td>
+                        <td className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</td>
+                      </tr>
+                      <tr className="bg-red-700/50">
+                        <td className="py-2 font-bold text-lg">TOTAL</td>
+                        <td className="text-right font-bold text-lg">{redBreakdown.totalScore}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            
+            {/* Blue Score Breakdown */}
+            {(() => {
+              const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
+              return (
+                <div className="bg-blue-900/50 rounded-lg p-4 min-w-[280px]">
+                  <div className="text-blue-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>BLUE BREAKDOWN</div>
+                  <table className="w-full text-white" style={{ fontSize: '14px' }}>
+                    <tbody>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">🚗 Auto Leave</td>
+                        <td className="text-right font-bold">{blueBreakdown.autoLeave}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">🟢 Auto Classified (×3)</td>
+                        <td className="text-right font-bold">{blueBreakdown.autoClassified}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">➕ Auto Overflow</td>
+                        <td className="text-right font-bold">{blueBreakdown.autoOverflow}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">✔ Auto Pattern (×2)</td>
+                        <td className="text-right font-bold">{blueBreakdown.autoPattern}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50 bg-blue-800/30">
+                        <td className="py-1 font-bold">Auto Subtotal</td>
+                        <td className="text-right font-bold">{blueBreakdown.autoTotal}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">🟢 Teleop Classified (×3)</td>
+                        <td className="text-right font-bold">{blueBreakdown.teleopClassified}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">➕ Teleop Overflow</td>
+                        <td className="text-right font-bold">{blueBreakdown.teleopOverflow}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">📦 Teleop Depot</td>
+                        <td className="text-right font-bold">{blueBreakdown.teleopDepot}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">✔ Teleop Pattern (×2)</td>
+                        <td className="text-right font-bold">{blueBreakdown.teleopPattern}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50 bg-blue-800/30">
+                        <td className="py-1 font-bold">Teleop Subtotal</td>
+                        <td className="text-right font-bold">{blueBreakdown.teleopTotal}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">🏠 BASE Return</td>
+                        <td className="text-right font-bold">{blueBreakdown.endgameBase}</td>
+                      </tr>
+                      <tr className="border-b border-blue-700/50">
+                        <td className="py-1">⚠ Opponent Penalties</td>
+                        <td className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</td>
+                      </tr>
+                      <tr className="bg-blue-700/50">
+                        <td className="py-2 font-bold text-lg">TOTAL</td>
+                        <td className="text-right font-bold text-lg">{blueBreakdown.totalScore}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
