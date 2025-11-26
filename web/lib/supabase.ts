@@ -326,6 +326,14 @@ export class SupabaseNotConfiguredError extends Error {
   }
 }
 
+// Custom error class for database connection errors
+export class DatabaseConnectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DatabaseConnectionError';
+  }
+}
+
 // Fetch event by name
 export async function fetchEvent(eventName: string): Promise<EventData | null> {
   const client = getSupabaseClient();
@@ -340,8 +348,13 @@ export async function fetchEvent(eventName: string): Promise<EventData | null> {
     .single();
   
   if (error) {
+    // PGRST116 means "no rows found" - this is expected when event doesn't exist
+    if (error.code === 'PGRST116') {
+      return null;
+    }
+    // Any other error is a connection/database issue
     console.error('Error fetching event:', error);
-    return null;
+    throw new DatabaseConnectionError(error.message || 'Failed to connect to database');
   }
   
   return data as EventData;

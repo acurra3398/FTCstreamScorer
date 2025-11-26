@@ -7,6 +7,7 @@ import {
   DecodeScore, 
   EventData, 
   SupabaseNotConfiguredError,
+  DatabaseConnectionError,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
@@ -59,6 +60,8 @@ function DisplayPageContent() {
       } catch (err) {
         if (err instanceof SupabaseNotConfiguredError) {
           setError('Database not configured. Please set up Supabase backend first.');
+        } else if (err instanceof DatabaseConnectionError) {
+          setError('Connection error: ' + err.message);
         } else {
           setError('Connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
         }
