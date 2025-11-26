@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS events (
     audio_sdp_offer TEXT DEFAULT '',
     audio_sdp_answer TEXT DEFAULT '',
     
+    -- Video streaming from host camera (WebRTC signaling)
+    video_enabled BOOLEAN DEFAULT FALSE,
+    video_sdp_offer TEXT DEFAULT '',
+    video_sdp_answer TEXT DEFAULT '',
+    video_ice_candidates_host TEXT DEFAULT '[]',
+    video_ice_candidates_display TEXT DEFAULT '[]',
+    
     -- Team info
     red_team1 TEXT DEFAULT '',
     red_team2 TEXT DEFAULT '',

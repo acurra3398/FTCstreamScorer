@@ -97,6 +97,13 @@ function DisplayPageContent() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastSdpOfferRef = useRef<string>('');
   
+  // Video streaming receiver state
+  const hostVideoRef = useRef<HTMLVideoElement>(null);
+  const videoPeerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const lastVideoSdpOfferRef = useRef<string>('');
+  const [hostVideoStream, setHostVideoStream] = useState<MediaStream | null>(null);
+  const [videoConnectionStatus, setVideoConnectionStatus] = useState<string>('');
+  
   // Track if we've already triggered the video for this score release
   const hasTriggeredVideo = useRef(false);
 
@@ -116,6 +123,21 @@ function DisplayPageContent() {
     const seconds = calculatePreciseTimerSeconds(data);
     setTimerDisplay(formatTimeDisplay(seconds));
   };
+  
+  // Local timer update effect - recalculates every 100ms for smooth display
+  // This ensures the timer updates even between server polls
+  useEffect(() => {
+    if (!eventData || !eventData.timer_running || eventData.timer_paused) {
+      return;
+    }
+    
+    const localTimer = setInterval(() => {
+      const seconds = calculatePreciseTimerSeconds(eventData);
+      setTimerDisplay(formatTimeDisplay(seconds));
+    }, 100);
+    
+    return () => clearInterval(localTimer);
+  }, [eventData]);
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
@@ -193,6 +215,139 @@ function DisplayPageContent() {
       }
     };
   }, [eventData?.audio_enabled, eventData?.audio_sdp_offer, eventData?.audio_ice_candidates]);
+  
+  // Handle WebRTC video streaming from host
+  useEffect(() => {
+    async function handleVideoStreaming(data: EventData) {
+      // Check if video is enabled and we have an SDP offer
+      if (!data.video_enabled || !data.video_sdp_offer) {
+        // Video disabled - cleanup
+        if (videoPeerConnectionRef.current) {
+          videoPeerConnectionRef.current.close();
+          videoPeerConnectionRef.current = null;
+        }
+        lastVideoSdpOfferRef.current = '';
+        setHostVideoStream(null);
+        setVideoConnectionStatus('');
+        return;
+      }
+      
+      // Check if this is a new offer
+      if (data.video_sdp_offer === lastVideoSdpOfferRef.current) {
+        return; // Same offer, no action needed
+      }
+      
+      lastVideoSdpOfferRef.current = data.video_sdp_offer;
+      setVideoConnectionStatus('Connecting to host camera...');
+      
+      try {
+        // Create peer connection for receiving video
+        if (videoPeerConnectionRef.current) {
+          videoPeerConnectionRef.current.close();
+        }
+        
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ]
+        });
+        videoPeerConnectionRef.current = pc;
+        
+        // Handle incoming video track
+        pc.ontrack = (event) => {
+          console.log('Received video track from host');
+          setHostVideoStream(event.streams[0]);
+          setVideoConnectionStatus('Connected - Receiving video');
+          
+          if (hostVideoRef.current && event.streams[0]) {
+            hostVideoRef.current.srcObject = event.streams[0];
+            hostVideoRef.current.play().catch(console.error);
+          }
+        };
+        
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+          console.log('Video connection state:', pc.connectionState);
+          if (pc.connectionState === 'connected') {
+            setVideoConnectionStatus('Connected');
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            setVideoConnectionStatus('Connection lost');
+            setHostVideoStream(null);
+          }
+        };
+        
+        // Collect ICE candidates to send back to host
+        const iceCandidates: RTCIceCandidate[] = [];
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            iceCandidates.push(event.candidate);
+            // Send candidates to database for host to pick up
+            try {
+              await fetch(`/api/events/${encodeURIComponent(eventName)}/video-answer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
+                }),
+              });
+            } catch (e) {
+              console.error('Error sending ICE candidates:', e);
+            }
+          }
+        };
+        
+        // Set remote description (the offer from host)
+        const offer = JSON.parse(data.video_sdp_offer);
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        // Add host's ICE candidates
+        if (data.video_ice_candidates_host) {
+          const hostCandidates = JSON.parse(data.video_ice_candidates_host);
+          for (const candidate of hostCandidates) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.error('Error adding host ICE candidate:', e);
+            }
+          }
+        }
+        
+        // Create answer
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        
+        // Send answer back to host via API
+        try {
+          await fetch(`/api/events/${encodeURIComponent(eventName)}/video-answer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              answer: JSON.stringify(answer)
+            }),
+          });
+          setVideoConnectionStatus('Answer sent - waiting for connection...');
+        } catch (e) {
+          console.error('Error sending video answer:', e);
+          setVideoConnectionStatus('Error connecting');
+        }
+      } catch (err) {
+        console.error('Error setting up video receiver:', err);
+        setVideoConnectionStatus('Error: ' + (err instanceof Error ? err.message : 'Unknown'));
+      }
+    }
+    
+    if (eventData) {
+      handleVideoStreaming(eventData);
+    }
+    
+    return () => {
+      if (videoPeerConnectionRef.current) {
+        videoPeerConnectionRef.current.close();
+        videoPeerConnectionRef.current = null;
+      }
+    };
+  }, [eventData?.video_enabled, eventData?.video_sdp_offer, eventData?.video_ice_candidates_host, eventName]);
   
   // Determine winner and show video when scores are released
   useEffect(() => {
@@ -667,7 +822,18 @@ function DisplayPageContent() {
           
           {/* Normal camera/stream display when not showing results */}
           {!showWinnerVideo && eventData?.match_state !== 'SCORES_RELEASED' && (
-            eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
+            // Priority 1: Show host's WebRTC video stream if available
+            hostVideoStream ? (
+              <video
+                ref={hostVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-contain"
+                style={{ backgroundColor: COLORS.BLACK }}
+              />
+            ) : eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
+              // Priority 2: Show embedded livestream URL
               <iframe
                 src={eventData.livestream_url}
                 className="w-full h-full border-0"
@@ -695,7 +861,33 @@ function DisplayPageContent() {
                   Only YouTube, Twitch, and Vimeo URLs are supported
                 </div>
               </div>
+            ) : eventData?.video_enabled ? (
+              // Priority 3: Video enabled but not connected yet
+              <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
+                <div 
+                  className="font-bold mb-4 text-yellow-400"
+                  style={{ 
+                    fontSize: '36px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  📡 Connecting to Host Camera...
+                </div>
+                <div 
+                  className="text-gray-500"
+                  style={{ 
+                    fontSize: '18px',
+                    fontFamily: 'Arial, sans-serif',
+                  }}
+                >
+                  {videoConnectionStatus || 'Waiting for video stream...'}
+                </div>
+                <div className="mt-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-yellow-500"></div>
+                </div>
+              </div>
             ) : (
+              // Priority 4: No video source - show status
               <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
                 {eventData?.match_state === 'NOT_STARTED' ? (
                   <>
@@ -733,7 +925,7 @@ function DisplayPageContent() {
                         fontFamily: 'Arial, sans-serif',
                       }}
                     >
-                      📹 <strong>Camera Setup:</strong> Set a YouTube/Twitch embed URL in host controls, or use this page as an OBS Browser Source and add your camera as a separate Video Capture source.
+                      📹 <strong>To show video:</strong> Host can click &quot;Stream to Display&quot; in Camera Preview to stream their camera directly here.
                     </div>
                   </>
                 ) : (
