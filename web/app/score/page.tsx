@@ -119,6 +119,21 @@ function ScoringPageContent() {
   const [timerDisplay, setTimerDisplay] = useState('--:--');
   const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
   
+  // Local timer update effect - recalculates every 100ms for smooth display
+  // This ensures the timer updates even between server polls
+  useEffect(() => {
+    if (!eventData || !eventData.timer_running || eventData.timer_paused) {
+      return;
+    }
+    
+    const localTimer = setInterval(() => {
+      const seconds = calculatePreciseTimerSeconds(eventData);
+      setTimerDisplay(formatTimeDisplay(seconds));
+    }, 100);
+    
+    return () => clearInterval(localTimer);
+  }, [eventData]);
+  
   // Score submission state
   const [scoresSubmitted, setScoresSubmitted] = useState(false);
   

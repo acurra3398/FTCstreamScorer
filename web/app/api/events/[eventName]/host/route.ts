@@ -140,6 +140,15 @@ export async function PATCH(
         if (data?.audioSdpAnswer !== undefined) updateData.audio_sdp_answer = data.audioSdpAnswer;
         if (data?.audioIceCandidates !== undefined) updateData.audio_ice_candidates = data.audioIceCandidates;
         break;
+      
+      case 'setVideoState':
+        // Set video streaming state for host camera
+        if (data?.videoEnabled !== undefined) updateData.video_enabled = data.videoEnabled;
+        if (data?.videoSdpOffer !== undefined) updateData.video_sdp_offer = data.videoSdpOffer;
+        if (data?.videoSdpAnswer !== undefined) updateData.video_sdp_answer = data.videoSdpAnswer;
+        if (data?.videoIceCandidatesHost !== undefined) updateData.video_ice_candidates_host = data.videoIceCandidatesHost;
+        if (data?.videoIceCandidatesDisplay !== undefined) updateData.video_ice_candidates_display = data.videoIceCandidatesDisplay;
+        break;
 
       case 'resetScores':
         // Reset all scores to zero and reset timer state
@@ -184,6 +193,11 @@ export async function PATCH(
           audio_sdp_offer: '',
           audio_sdp_answer: '',
           audio_ice_candidates: '[]',
+          video_enabled: false,
+          video_sdp_offer: '',
+          video_sdp_answer: '',
+          video_ice_candidates_host: '[]',
+          video_ice_candidates_display: '[]',
         };
         break;
 

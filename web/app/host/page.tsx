@@ -134,6 +134,7 @@ function useAudioService() {
       Object.values(audioRefs.current).forEach(audio => {
         audio.pause();
         audio.src = '';
+        audio.onended = null;
       });
     };
   }, []);
@@ -141,12 +142,29 @@ function useAudioService() {
   const playAudio = useCallback((key: string, onEnded?: () => void) => {
     const audio = audioRefs.current[key];
     if (audio) {
+      // Clear any previous onended handler
+      audio.onended = null;
       audio.currentTime = 0;
+      
       if (onEnded) {
-        audio.onended = onEnded;
+        // Use addEventListener for more reliable callback
+        const handleEnded = () => {
+          audio.removeEventListener('ended', handleEnded);
+          onEnded();
+        };
+        audio.addEventListener('ended', handleEnded);
       }
-      audio.play().catch(err => console.error('Audio playback failed:', err));
+      
+      audio.play().catch(err => {
+        console.error('Audio playback failed:', err);
+        // If audio fails to play, still call the callback after a short delay
+        // This ensures the match flow continues even if audio doesn't work
+        if (onEnded) {
+          setTimeout(onEnded, 100);
+        }
+      });
     } else if (onEnded) {
+      // No audio element, call callback immediately
       onEnded();
     }
   }, []);
@@ -155,6 +173,7 @@ function useAudioService() {
     Object.values(audioRefs.current).forEach(audio => {
       audio.pause();
       audio.currentTime = 0;
+      audio.onended = null;
     });
   }, []);
   
@@ -193,7 +212,10 @@ function HostPageContent() {
   const [selectedCamera, setSelectedCamera] = useState<string>('');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraStreaming, setCameraStreaming] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<string>('');
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const videoPeerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
   // Timer state
   const [timerRunning, setTimerRunning] = useState(false);
@@ -382,6 +404,147 @@ function HostPageContent() {
         console.error('Error starting audio:', err);
         setAudioStatus('Failed to start audio: ' + (err instanceof Error ? err.message : 'Unknown error'));
       }
+    }
+  };
+  
+  // Handle video streaming toggle
+  const handleVideoStreamingToggle = async () => {
+    if (cameraStreaming) {
+      // Stop video streaming
+      if (videoPeerConnectionRef.current) {
+        videoPeerConnectionRef.current.close();
+        videoPeerConnectionRef.current = null;
+      }
+      setCameraStreaming(false);
+      setCameraStatus('Video streaming stopped');
+      
+      // Update database to disable video
+      await hostActionAPI(eventName, password, 'setVideoState', { 
+        videoEnabled: false,
+        videoSdpOffer: '',
+        videoSdpAnswer: '',
+        videoIceCandidatesHost: '[]',
+        videoIceCandidatesDisplay: '[]',
+      });
+    } else if (cameraStream) {
+      // Start video streaming with existing camera stream
+      try {
+        setCameraStatus('Starting video stream...');
+        
+        // Create WebRTC peer connection for video
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ]
+        });
+        videoPeerConnectionRef.current = pc;
+        
+        // Add video track to connection
+        cameraStream.getVideoTracks().forEach(track => {
+          pc.addTrack(track, cameraStream);
+        });
+        
+        // Handle ICE candidates - send to database for display to pick up
+        const iceCandidates: RTCIceCandidate[] = [];
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            iceCandidates.push(event.candidate);
+            // Update candidates in database
+            await hostActionAPI(eventName, password, 'setVideoState', { 
+              videoIceCandidatesHost: JSON.stringify(iceCandidates.map(c => c.toJSON())),
+            });
+          }
+        };
+        
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'connected') {
+            setCameraStatus('📹 Video streaming - Connected to display!');
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            setCameraStatus('⚠️ Video connection lost');
+          }
+        };
+        
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        // Store offer in database for display to pick up
+        await hostActionAPI(eventName, password, 'setVideoState', { 
+          videoEnabled: true,
+          videoSdpOffer: JSON.stringify(offer),
+          videoSdpAnswer: '', // Clear any old answer
+          videoIceCandidatesDisplay: '[]', // Clear any old display candidates
+        });
+        
+        setCameraStreaming(true);
+        setCameraStatus('📹 Waiting for display to connect...');
+        
+        // Poll for display's answer with timeout
+        let pollAttempts = 0;
+        const maxPollAttempts = 30; // 30 seconds timeout
+        const pollForAnswer = setInterval(async () => {
+          pollAttempts++;
+          
+          // Timeout after 30 seconds
+          if (pollAttempts > maxPollAttempts) {
+            clearInterval(pollForAnswer);
+            setCameraStatus('⏱️ Connection timeout - Display may not be connected');
+            return;
+          }
+          
+          try {
+            const data = await fetchEventAPI(eventName);
+            if (data?.video_sdp_answer && pc.signalingState === 'have-local-offer') {
+              // Display has sent an answer
+              try {
+                const answer = JSON.parse(data.video_sdp_answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                setCameraStatus('📹 Video streaming - LIVE');
+                
+                // Add display's ICE candidates
+                if (data.video_ice_candidates_display) {
+                  try {
+                    const displayCandidates = JSON.parse(data.video_ice_candidates_display);
+                    for (const candidate of displayCandidates) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                      } catch (e) {
+                        console.error('Error adding display ICE candidate:', e);
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error parsing display ICE candidates:', e);
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing video SDP answer:', e);
+              }
+              
+              clearInterval(pollForAnswer);
+            }
+          } catch (err) {
+            console.error('Error polling for video answer:', err);
+          }
+        }, 1000);
+        
+        // Store interval ID in a ref for proper cleanup on component unmount
+        const currentPollRef = { interval: pollForAnswer };
+        
+        // Cleanup on stop - store reference in closure for the stop handler
+        const originalClose = pc.close.bind(pc);
+        pc.close = () => {
+          clearInterval(currentPollRef.interval);
+          originalClose();
+        };
+        
+      } catch (err) {
+        console.error('Error starting video stream:', err);
+        setCameraStatus('Failed to start video: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    } else {
+      setCameraStatus('Please start the camera preview first');
     }
   };
 
@@ -606,9 +769,6 @@ function HostPageContent() {
     waitingForSound.current = true;
     setActionStatus('Match starting with countdown...');
     
-    // Play countdown audio and sync countdown numbers
-    playAudio('countdown');
-    
     // Use constants for countdown sequence
     const countdownNumbers = MATCH_TIMING.COUNTDOWN_NUMBERS;
     let countdownIndex = 0;
@@ -619,7 +779,32 @@ function HostPageContent() {
     }).catch(console.error);
     countdownIndex++;
     
-    // Use setInterval for consistent timing (more reliable than recursive setTimeout)
+    // Play countdown audio - timer will start when this audio ENDS
+    // This ensures the timer starts at the end of the GO sound, not the first ring
+    playAudio('countdown', () => {
+      // Countdown audio has finished (including any GO sound at the end)
+      // Clear the countdown display
+      hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
+      
+      // Start the match immediately after countdown audio ends
+      setMatchPhase('AUTONOMOUS');
+      setTimerRunning(true);
+      setTimerPaused(false);
+      waitingForSound.current = false;
+      
+      // Sync match state and timer
+      hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
+      hostActionAPI(eventName, password, 'updateTimerState', { 
+        timerRunning: true,
+        timerPaused: false,
+        timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+        timerStartedAt: new Date().toISOString(),
+      }).catch(console.error);
+      
+      setActionStatus('Match started! Autonomous period.');
+    });
+    
+    // Use setInterval for visual countdown - this runs in parallel with audio
     const countdownInterval = setInterval(async () => {
       if (countdownIndex < countdownNumbers.length) {
         const currentNumber = countdownNumbers[countdownIndex];
@@ -627,28 +812,9 @@ function HostPageContent() {
         hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: currentNumber }).catch(console.error);
         countdownIndex++;
       } else {
-        // Countdown finished - clear interval and start match
+        // Visual countdown finished - clear interval
         clearInterval(countdownInterval);
-        
-        // Clear the countdown display
-        await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
-        
-        // Play match start sound
-        playAudio('startmatch', () => {
-          setMatchPhase('AUTONOMOUS');
-          setTimerRunning(true);
-          setTimerPaused(false);
-          waitingForSound.current = false;
-          
-          // Sync match state and timer
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
-          hostActionAPI(eventName, password, 'updateTimerState', { 
-            timerRunning: true,
-            timerPaused: false,
-            timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
-            timerStartedAt: new Date().toISOString(),
-          }).catch(console.error);
-        });
+        // Note: Match doesn't start here - it starts when audio ends
       }
     }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS);
   };
@@ -895,6 +1061,38 @@ function HostPageContent() {
             )}
           </div>
           
+          {/* Referee Score Submission Status - show when match is finished or under review */}
+          {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+              <h4 className="text-center font-bold text-lg mb-3">📋 Referee Submissions</h4>
+              <div className="flex justify-center gap-8">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  eventData?.red_scores_submitted 
+                    ? 'bg-green-100 border-2 border-green-500 text-green-800' 
+                    : 'bg-red-100 border-2 border-red-300 text-red-700'
+                }`}>
+                  <span className="text-lg">{eventData?.red_scores_submitted ? '✅' : '⏳'}</span>
+                  <span className="font-bold">RED:</span>
+                  <span>{eventData?.red_scores_submitted ? 'Submitted' : 'Pending'}</span>
+                </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                  eventData?.blue_scores_submitted 
+                    ? 'bg-green-100 border-2 border-green-500 text-green-800' 
+                    : 'bg-blue-100 border-2 border-blue-300 text-blue-700'
+                }`}>
+                  <span className="text-lg">{eventData?.blue_scores_submitted ? '✅' : '⏳'}</span>
+                  <span className="font-bold">BLUE:</span>
+                  <span>{eventData?.blue_scores_submitted ? 'Submitted' : 'Pending'}</span>
+                </div>
+              </div>
+              {eventData?.red_scores_submitted && eventData?.blue_scores_submitted && (
+                <div className="mt-3 text-center text-green-600 font-bold animate-pulse">
+                  ✅ Both referees have submitted! Ready to release final scores.
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Release Final Scores button - only show when match is finished or under review */}
           {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
             <div className="mt-4 flex justify-center">
@@ -1013,7 +1211,31 @@ function HostPageContent() {
               >
                 {cameraEnabled ? '⏹️ Stop' : '▶️ Start'}
               </button>
+              {cameraEnabled && (
+                <button
+                  onClick={handleVideoStreamingToggle}
+                  className={`px-4 py-2 rounded font-bold transition-colors ${
+                    cameraStreaming 
+                      ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse' 
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  {cameraStreaming ? '⏹️ Stop Streaming' : '📡 Stream to Display'}
+                </button>
+              )}
             </div>
+            
+            {/* Video streaming status */}
+            {cameraStatus && (
+              <div className={`p-2 rounded text-sm ${
+                cameraStreaming 
+                  ? 'bg-purple-100 text-purple-800 border border-purple-300' 
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {cameraStreaming && <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>}
+                {cameraStatus}
+              </div>
+            )}
             
             {/* Camera preview */}
             {cameraEnabled && (
@@ -1025,20 +1247,25 @@ function HostPageContent() {
                   playsInline
                   className="w-full h-full object-cover"
                 />
+                {cameraStreaming && (
+                  <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-sm font-bold animate-pulse">
+                    🔴 LIVE
+                  </div>
+                )}
               </div>
             )}
             
             {/* Livestream URL for display camera mode */}
             <div className="mt-3 p-3 bg-gray-50 rounded">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Livestream URL (Optional - for embedded streams)
+                Alternative: External Livestream URL
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={livestreamUrl}
                   onChange={(e) => setLivestreamUrl(e.target.value)}
-                  placeholder="https://youtube.com/embed/... or leave empty"
+                  placeholder="https://youtube.com/embed/... (optional)"
                   className="flex-1 p-2 border rounded text-sm"
                 />
                 <button
@@ -1049,12 +1276,12 @@ function HostPageContent() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Optional: Embed a YouTube/Twitch stream in Camera mode. Leave empty to use display as overlay only.
+                Use this if you prefer to embed a YouTube/Twitch stream instead of the direct camera stream.
               </p>
             </div>
             
             <p className="text-sm text-gray-600 mt-3">
-              <strong>For OBS:</strong> Add the Display page (/display?mode=overlay or /display?mode=camera) as a Browser Source. Add your camera separately as a Video Capture source and layer it with the score overlay. No URL needed!
+              <strong>💡 Tip:</strong> Click &quot;Stream to Display&quot; to send your camera directly to the display page. No OBS required!
             </p>
           </div>
         </div>

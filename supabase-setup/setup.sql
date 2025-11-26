@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS events (
     audio_sdp_offer TEXT DEFAULT '',
     audio_sdp_answer TEXT DEFAULT '',
     
+    -- Video streaming from host camera (WebRTC signaling)
+    video_enabled BOOLEAN DEFAULT FALSE,
+    video_sdp_offer TEXT DEFAULT '',
+    video_sdp_answer TEXT DEFAULT '',
+    video_ice_candidates_host TEXT DEFAULT '[]',
+    video_ice_candidates_display TEXT DEFAULT '[]',
+    
     -- Team info
     red_team1 TEXT DEFAULT '',
     red_team2 TEXT DEFAULT '',
@@ -64,6 +71,16 @@ CREATE TABLE IF NOT EXISTS events (
     blue_robot2_base TEXT DEFAULT 'NOT_IN_BASE',
     blue_major_fouls INTEGER DEFAULT 0,
     blue_minor_fouls INTEGER DEFAULT 0,
+    
+    -- Score submission flags (referee tablets)
+    red_scores_submitted BOOLEAN DEFAULT FALSE,
+    blue_scores_submitted BOOLEAN DEFAULT FALSE,
+    
+    -- Timer sync timestamp for precise synchronization
+    timer_last_sync TIMESTAMPTZ,
+    
+    -- Pre-match countdown number (5, 4, 3, 2, 1)
+    countdown_number INTEGER,
     
     -- Timestamps
     updated_at TIMESTAMPTZ DEFAULT NOW()
