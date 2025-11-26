@@ -185,13 +185,13 @@ public class SyncClient {
             // Update local match state from server
             try {
                 // Parse red scores
-                String redSection = extractSection(message, "\"red\":{", "}");
+                String redSection = JsonParser.extractSection(message, "\"red\":{", "}");
                 if (redSection != null) {
                     applyScoreData(match.getRedScore(), redSection);
                 }
                 
                 // Parse blue scores
-                String blueSection = extractSection(message, "\"blue\":{", "}");
+                String blueSection = JsonParser.extractSection(message, "\"blue\":{", "}");
                 if (blueSection != null) {
                     applyScoreData(match.getBlueScore(), blueSection);
                 }
@@ -205,30 +205,21 @@ public class SyncClient {
         }
     }
     
-    private String extractSection(String json, String startMarker, String endMarker) {
-        int start = json.indexOf(startMarker);
-        if (start < 0) return null;
-        start += startMarker.length() - 1; // Include the {
-        int end = json.indexOf(endMarker, start) + 1;
-        if (end <= start) return null;
-        return json.substring(start, end);
-    }
-    
     private void applyScoreData(DecodeScore score, String data) {
-        score.setAutoClassified(parseIntField(data, "autoClassified"));
-        score.setAutoOverflow(parseIntField(data, "autoOverflow"));
-        score.setAutoPatternMatches(parseIntField(data, "autoPatternMatches"));
-        score.setTeleopClassified(parseIntField(data, "teleopClassified"));
-        score.setTeleopOverflow(parseIntField(data, "teleopOverflow"));
-        score.setTeleopDepot(parseIntField(data, "teleopDepot"));
-        score.setTeleopPatternMatches(parseIntField(data, "teleopPatternMatches"));
-        score.setRobot1Leave(parseBoolField(data, "robot1Leave"));
-        score.setRobot2Leave(parseBoolField(data, "robot2Leave"));
-        score.setMajorFouls(parseIntField(data, "majorFouls"));
-        score.setMinorFouls(parseIntField(data, "minorFouls"));
+        score.setAutoClassified(JsonParser.parseIntField(data, "autoClassified"));
+        score.setAutoOverflow(JsonParser.parseIntField(data, "autoOverflow"));
+        score.setAutoPatternMatches(JsonParser.parseIntField(data, "autoPatternMatches"));
+        score.setTeleopClassified(JsonParser.parseIntField(data, "teleopClassified"));
+        score.setTeleopOverflow(JsonParser.parseIntField(data, "teleopOverflow"));
+        score.setTeleopDepot(JsonParser.parseIntField(data, "teleopDepot"));
+        score.setTeleopPatternMatches(JsonParser.parseIntField(data, "teleopPatternMatches"));
+        score.setRobot1Leave(JsonParser.parseBoolField(data, "robot1Leave"));
+        score.setRobot2Leave(JsonParser.parseBoolField(data, "robot2Leave"));
+        score.setMajorFouls(JsonParser.parseIntField(data, "majorFouls"));
+        score.setMinorFouls(JsonParser.parseIntField(data, "minorFouls"));
         
-        String base1 = parseStringField(data, "robot1Base");
-        String base2 = parseStringField(data, "robot2Base");
+        String base1 = JsonParser.parseStringField(data, "robot1Base");
+        String base2 = JsonParser.parseStringField(data, "robot2Base");
         if (base1 != null) {
             try {
                 score.setRobot1Base(DecodeScore.BaseStatus.valueOf(base1));
@@ -243,39 +234,5 @@ public class SyncClient {
                 // Ignore invalid enum
             }
         }
-    }
-    
-    private int parseIntField(String json, String field) {
-        String pattern = "\"" + field + "\":";
-        int start = json.indexOf(pattern);
-        if (start < 0) return 0;
-        start += pattern.length();
-        int end = start;
-        while (end < json.length() && (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) {
-            end++;
-        }
-        try {
-            return Integer.parseInt(json.substring(start, end));
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-    
-    private boolean parseBoolField(String json, String field) {
-        String pattern = "\"" + field + "\":";
-        int start = json.indexOf(pattern);
-        if (start < 0) return false;
-        start += pattern.length();
-        return json.substring(start).startsWith("true");
-    }
-    
-    private String parseStringField(String json, String field) {
-        String pattern = "\"" + field + "\":\"";
-        int start = json.indexOf(pattern);
-        if (start < 0) return null;
-        start += pattern.length();
-        int end = json.indexOf("\"", start);
-        if (end < 0) return null;
-        return json.substring(start, end);
     }
 }

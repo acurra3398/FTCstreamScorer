@@ -206,27 +206,26 @@ public class SyncServer {
     
     private void applyScoreUpdate(String message, String alliance) {
         // Parse and apply score update from client
-        // This is a simplified parser - in production you'd use a JSON library
         try {
             if (message.startsWith("{") && message.contains("\"type\":\"SCORE_UPDATE\"")) {
                 org.ftc.scorer.model.DecodeScore score = 
                     "RED".equals(alliance) ? match.getRedScore() : match.getBlueScore();
                 
-                // Parse fields
-                score.setAutoClassified(parseIntField(message, "autoClassified"));
-                score.setAutoOverflow(parseIntField(message, "autoOverflow"));
-                score.setAutoPatternMatches(parseIntField(message, "autoPatternMatches"));
-                score.setTeleopClassified(parseIntField(message, "teleopClassified"));
-                score.setTeleopOverflow(parseIntField(message, "teleopOverflow"));
-                score.setTeleopDepot(parseIntField(message, "teleopDepot"));
-                score.setTeleopPatternMatches(parseIntField(message, "teleopPatternMatches"));
-                score.setRobot1Leave(parseBoolField(message, "robot1Leave"));
-                score.setRobot2Leave(parseBoolField(message, "robot2Leave"));
-                score.setMajorFouls(parseIntField(message, "majorFouls"));
-                score.setMinorFouls(parseIntField(message, "minorFouls"));
+                // Parse fields using shared JsonParser
+                score.setAutoClassified(JsonParser.parseIntField(message, "autoClassified"));
+                score.setAutoOverflow(JsonParser.parseIntField(message, "autoOverflow"));
+                score.setAutoPatternMatches(JsonParser.parseIntField(message, "autoPatternMatches"));
+                score.setTeleopClassified(JsonParser.parseIntField(message, "teleopClassified"));
+                score.setTeleopOverflow(JsonParser.parseIntField(message, "teleopOverflow"));
+                score.setTeleopDepot(JsonParser.parseIntField(message, "teleopDepot"));
+                score.setTeleopPatternMatches(JsonParser.parseIntField(message, "teleopPatternMatches"));
+                score.setRobot1Leave(JsonParser.parseBoolField(message, "robot1Leave"));
+                score.setRobot2Leave(JsonParser.parseBoolField(message, "robot2Leave"));
+                score.setMajorFouls(JsonParser.parseIntField(message, "majorFouls"));
+                score.setMinorFouls(JsonParser.parseIntField(message, "minorFouls"));
                 
-                String base1 = parseStringField(message, "robot1Base");
-                String base2 = parseStringField(message, "robot2Base");
+                String base1 = JsonParser.parseStringField(message, "robot1Base");
+                String base2 = JsonParser.parseStringField(message, "robot2Base");
                 if (base1 != null) {
                     score.setRobot1Base(org.ftc.scorer.model.DecodeScore.BaseStatus.valueOf(base1));
                 }
@@ -245,40 +244,6 @@ public class SyncServer {
         } catch (Exception e) {
             System.err.println("Error parsing score update: " + e.getMessage());
         }
-    }
-    
-    private int parseIntField(String json, String field) {
-        String pattern = "\"" + field + "\":";
-        int start = json.indexOf(pattern);
-        if (start < 0) return 0;
-        start += pattern.length();
-        int end = start;
-        while (end < json.length() && (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) {
-            end++;
-        }
-        try {
-            return Integer.parseInt(json.substring(start, end));
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-    
-    private boolean parseBoolField(String json, String field) {
-        String pattern = "\"" + field + "\":";
-        int start = json.indexOf(pattern);
-        if (start < 0) return false;
-        start += pattern.length();
-        return json.substring(start).startsWith("true");
-    }
-    
-    private String parseStringField(String json, String field) {
-        String pattern = "\"" + field + "\":\"";
-        int start = json.indexOf(pattern);
-        if (start < 0) return null;
-        start += pattern.length();
-        int end = json.indexOf("\"", start);
-        if (end < 0) return null;
-        return json.substring(start, end);
     }
     
     /**
@@ -323,7 +288,7 @@ public class SyncServer {
         private void processMessage(String message) {
             if (message.contains("\"type\":\"ASSIGN\"")) {
                 // Client requesting alliance assignment
-                assignedAlliance = parseStringField(message, "alliance");
+                assignedAlliance = JsonParser.parseStringField(message, "alliance");
                 System.out.println("Client assigned to " + assignedAlliance + " alliance");
             } else if (message.contains("\"type\":\"SCORE_UPDATE\"") && assignedAlliance != null) {
                 // Client sending score update for their alliance
