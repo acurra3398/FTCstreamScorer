@@ -521,9 +521,91 @@ function DisplayPageContent() {
   // Full display mode - colored panels with score bar
   return (
     <div 
-      className="w-full h-screen flex flex-col overflow-hidden"
+      className="w-full h-screen flex flex-col overflow-hidden relative"
       style={{ backgroundColor: COLORS.BLACK }}
     >
+      {/* Hidden audio element for results sound */}
+      <audio ref={audioRef} preload="auto" />
+      
+      {/* Countdown overlay */}
+      {countdownDisplay !== null && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div 
+            className="text-white font-bold animate-pulse"
+            style={{ 
+              fontSize: '300px',
+              fontFamily: 'Arial, sans-serif',
+              textShadow: '0 0 50px rgba(255, 255, 255, 0.5)',
+            }}
+          >
+            {countdownDisplay}
+          </div>
+        </div>
+      )}
+      
+      {/* Winner Video Overlay */}
+      {showWinnerVideo && winnerVideoSrc && (
+        <div className="absolute inset-0 z-40">
+          <video
+            ref={videoRef}
+            src={winnerVideoSrc}
+            autoPlay
+            onEnded={handleVideoEnd}
+            className="w-full h-full object-contain"
+            style={{ backgroundColor: COLORS.BLACK }}
+          />
+        </div>
+      )}
+      
+      {/* Final Results Display (after video) */}
+      {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ backgroundColor: COLORS.BLACK }}>
+          <div 
+            className="text-white font-bold mb-8"
+            style={{ 
+              fontSize: '72px',
+              fontFamily: 'Arial, sans-serif',
+            }}
+          >
+            🏆 FINAL RESULTS 🏆
+          </div>
+          <div className="flex gap-32">
+            <div className="text-center">
+              <div className="text-red-500 font-bold mb-2" style={{ fontSize: '36px' }}>RED ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                {redTotal}
+              </div>
+              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-blue-500 font-bold mb-2" style={{ fontSize: '36px' }}>BLUE ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: '120px' }}>
+                {blueTotal}
+              </div>
+              <div className="text-gray-400" style={{ fontSize: '24px' }}>
+                {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
+              </div>
+            </div>
+          </div>
+          <div 
+            className="text-yellow-400 font-bold mt-8 animate-pulse"
+            style={{ fontSize: '48px' }}
+          >
+            {redTotal > blueTotal 
+              ? '🔴 RED WINS! 🔴' 
+              : blueTotal > redTotal
+                ? '🔵 BLUE WINS! 🔵'
+                : '🤝 TIE GAME! 🤝'
+            }
+          </div>
+        </div>
+      )}
+      
       {/* Video/Content Area - 83.12% of height */}
       <div 
         className="flex w-full"

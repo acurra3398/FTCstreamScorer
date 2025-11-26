@@ -184,7 +184,7 @@ function ScoringPageContent() {
         if (data) {
           // Detect new match start - reset scores when match state transitions to NOT_STARTED
           if (data.match_state === 'NOT_STARTED' && lastMatchState !== null && lastMatchState !== 'NOT_STARTED') {
-            // New match started - reset local scores
+            // New match started - reset local scores and submission state
             setRedScore(extractRedScore(data));
             setBlueScore(extractBlueScore(data));
             setScoresSubmitted(false);
@@ -195,6 +195,14 @@ function ScoringPageContent() {
             } else {
               setRedScore(extractRedScore(data));
             }
+          }
+          
+          // Sync the scores submitted state from server
+          const serverSubmittedStatus = alliance === 'RED' 
+            ? data.red_scores_submitted 
+            : data.blue_scores_submitted;
+          if (serverSubmittedStatus !== undefined) {
+            setScoresSubmitted(serverSubmittedStatus);
           }
           
           setEventData(data);
@@ -271,10 +279,25 @@ function ScoringPageContent() {
   const handleSubmitFinalScores = async () => {
     if (!confirm(`Submit final scores for ${alliance} alliance? This will indicate your alliance's scoring is complete.`)) return;
     
-    setScoresSubmitted(true);
-    
-    // The host will see both referees have submitted and can then release final scores
-    alert(`${alliance} alliance scores submitted! Waiting for host to release final results.`);
+    try {
+      // Send submission status to server
+      const response = await fetch(`/api/events/${encodeURIComponent(eventName)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alliance, scoresSubmitted: true }),
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        setScoresSubmitted(true);
+        alert(`${alliance} alliance scores submitted! Waiting for host to release final results.`);
+      } else {
+        alert(`Failed to submit scores: ${result.message}`);
+      }
+    } catch (err) {
+      console.error('Error submitting scores:', err);
+      alert('Failed to submit scores. Please try again.');
+    }
   };
 
   if (isLoading) {

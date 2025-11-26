@@ -70,7 +70,7 @@ export async function PATCH(
   try {
     const { eventName } = await params;
     const body = await request.json();
-    const { alliance, score } = body;
+    const { alliance, score, scoresSubmitted } = body;
 
     if (!eventName) {
       return NextResponse.json(
@@ -82,13 +82,6 @@ export async function PATCH(
     if (!alliance || (alliance !== 'RED' && alliance !== 'BLUE')) {
       return NextResponse.json(
         { success: false, message: 'Valid alliance (RED or BLUE) is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!score || typeof score !== 'object') {
-      return NextResponse.json(
-        { success: false, message: 'Score data is required' },
         { status: 400 }
       );
     }
@@ -105,20 +98,34 @@ export async function PATCH(
     const prefix = alliance.toLowerCase();
     const updateData: Record<string, unknown> = {};
 
-    // Map score fields to database columns
-    if (score.autoClassified !== undefined) updateData[`${prefix}_auto_classified`] = score.autoClassified;
-    if (score.autoOverflow !== undefined) updateData[`${prefix}_auto_overflow`] = score.autoOverflow;
-    if (score.autoPatternMatches !== undefined) updateData[`${prefix}_auto_pattern`] = score.autoPatternMatches;
-    if (score.teleopClassified !== undefined) updateData[`${prefix}_teleop_classified`] = score.teleopClassified;
-    if (score.teleopOverflow !== undefined) updateData[`${prefix}_teleop_overflow`] = score.teleopOverflow;
-    if (score.teleopDepot !== undefined) updateData[`${prefix}_teleop_depot`] = score.teleopDepot;
-    if (score.teleopPatternMatches !== undefined) updateData[`${prefix}_teleop_pattern`] = score.teleopPatternMatches;
-    if (score.robot1Leave !== undefined) updateData[`${prefix}_robot1_leave`] = score.robot1Leave;
-    if (score.robot2Leave !== undefined) updateData[`${prefix}_robot2_leave`] = score.robot2Leave;
-    if (score.robot1Base !== undefined) updateData[`${prefix}_robot1_base`] = score.robot1Base;
-    if (score.robot2Base !== undefined) updateData[`${prefix}_robot2_base`] = score.robot2Base;
-    if (score.majorFouls !== undefined) updateData[`${prefix}_major_fouls`] = score.majorFouls;
-    if (score.minorFouls !== undefined) updateData[`${prefix}_minor_fouls`] = score.minorFouls;
+    // Handle score submission flag
+    if (scoresSubmitted !== undefined) {
+      updateData[`${prefix}_scores_submitted`] = scoresSubmitted;
+    }
+
+    // Map score fields to database columns (if score object provided)
+    if (score && typeof score === 'object') {
+      if (score.autoClassified !== undefined) updateData[`${prefix}_auto_classified`] = score.autoClassified;
+      if (score.autoOverflow !== undefined) updateData[`${prefix}_auto_overflow`] = score.autoOverflow;
+      if (score.autoPatternMatches !== undefined) updateData[`${prefix}_auto_pattern`] = score.autoPatternMatches;
+      if (score.teleopClassified !== undefined) updateData[`${prefix}_teleop_classified`] = score.teleopClassified;
+      if (score.teleopOverflow !== undefined) updateData[`${prefix}_teleop_overflow`] = score.teleopOverflow;
+      if (score.teleopDepot !== undefined) updateData[`${prefix}_teleop_depot`] = score.teleopDepot;
+      if (score.teleopPatternMatches !== undefined) updateData[`${prefix}_teleop_pattern`] = score.teleopPatternMatches;
+      if (score.robot1Leave !== undefined) updateData[`${prefix}_robot1_leave`] = score.robot1Leave;
+      if (score.robot2Leave !== undefined) updateData[`${prefix}_robot2_leave`] = score.robot2Leave;
+      if (score.robot1Base !== undefined) updateData[`${prefix}_robot1_base`] = score.robot1Base;
+      if (score.robot2Base !== undefined) updateData[`${prefix}_robot2_base`] = score.robot2Base;
+      if (score.majorFouls !== undefined) updateData[`${prefix}_major_fouls`] = score.majorFouls;
+      if (score.minorFouls !== undefined) updateData[`${prefix}_minor_fouls`] = score.minorFouls;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'No data to update' },
+        { status: 400 }
+      );
+    }
 
     const { error } = await client
       .from('events')

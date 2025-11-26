@@ -924,14 +924,14 @@ function HostPageContent() {
             {/* Livestream URL for display camera mode */}
             <div className="mt-3 p-3 bg-gray-50 rounded">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Livestream URL (for Camera Display Mode)
+                Livestream URL (Optional - for embedded streams)
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={livestreamUrl}
                   onChange={(e) => setLivestreamUrl(e.target.value)}
-                  placeholder="https://youtube.com/embed/... or stream URL"
+                  placeholder="https://youtube.com/embed/... or leave empty"
                   className="flex-1 p-2 border rounded text-sm"
                 />
                 <button
@@ -942,12 +942,12 @@ function HostPageContent() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Use this to embed a livestream in the Camera display mode (/display?mode=camera).
+                Optional: Embed a YouTube/Twitch stream in Camera mode. Leave empty to use display as overlay only.
               </p>
             </div>
             
             <p className="text-sm text-gray-600 mt-3">
-              <strong>For OBS:</strong> Add the Display page as a Browser Source in OBS. You can add your camera as a separate Video Capture source and layer it with the score overlay.
+              <strong>For OBS:</strong> Add the Display page (/display?mode=overlay or /display?mode=camera) as a Browser Source. Add your camera separately as a Video Capture source and layer it with the score overlay. No URL needed!
             </p>
           </div>
         </div>
