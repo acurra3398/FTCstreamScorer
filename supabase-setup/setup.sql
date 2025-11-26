@@ -13,6 +13,16 @@ CREATE TABLE IF NOT EXISTS events (
     motif TEXT DEFAULT 'PPG',
     match_state TEXT DEFAULT 'NOT_STARTED',
     
+    -- Timer state (managed by host)
+    timer_running BOOLEAN DEFAULT FALSE,
+    timer_paused BOOLEAN DEFAULT FALSE,
+    timer_seconds_remaining INTEGER DEFAULT 30,
+    timer_started_at TIMESTAMPTZ,
+    timer_paused_at TIMESTAMPTZ,
+    
+    -- Camera livestream URL (set by host)
+    livestream_url TEXT DEFAULT '',
+    
     -- Team info
     red_team1 TEXT DEFAULT '',
     red_team2 TEXT DEFAULT '',

@@ -11,7 +11,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT } from '@/lib/constants';
+import { COLORS, LAYOUT, MATCH_TIMING } from '@/lib/constants';
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -29,16 +29,22 @@ async function fetchEventAPI(eventName: string): Promise<EventData | null> {
 }
 
 /**
- * Display page matching the live FTC Stream Scorer UI layout
- * Based on reference image (1382×776):
- * - Video area: 83.12% of height (645px at baseline)
- * - Overlay (scorebar): 16.88% of height (131px at baseline)
- * - No letterboxing - content fills full width
- * - Colors: Red #790213, Blue #0A6CAF
+ * Display page for OBS Browser Source
+ * Supports two modes via URL parameter:
+ * - ?mode=overlay - Transparent background, just the score bar (for OBS overlay)
+ * - ?mode=full (default) - Full display with colored panels
+ * 
+ * OBS Setup:
+ * 1. Add Browser Source
+ * 2. URL: https://yoursite.com/display?event=EVENT_NAME&mode=overlay
+ * 3. Width: 1920 (or your stream width)
+ * 4. Height: 1080 (or your stream height)
+ * 5. Enable "Shutdown source when not visible" for performance
  */
 function DisplayPageContent() {
   const searchParams = useSearchParams();
   const eventName = searchParams.get('event') || '';
+  const displayMode = searchParams.get('mode') || 'full'; // 'full' or 'overlay'
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +53,34 @@ function DisplayPageContent() {
   const [redScore, setRedScore] = useState<DecodeScore>(createDefaultScore());
   const [blueScore, setBlueScore] = useState<DecodeScore>(createDefaultScore());
   const [eventData, setEventData] = useState<EventData | null>(null);
+  
+  // Timer state (synchronized from host)
+  const [timerDisplay, setTimerDisplay] = useState('--:--');
+
+  // Calculate timer display based on event data
+  const updateTimerDisplay = (data: EventData) => {
+    if (!data.timer_running) {
+      const seconds = data.timer_seconds_remaining ?? MATCH_TIMING.AUTO_DURATION;
+      setTimerDisplay(formatTime(seconds));
+      return;
+    }
+    
+    if (data.timer_paused && data.timer_paused_at) {
+      const seconds = data.timer_seconds_remaining ?? 0;
+      setTimerDisplay(formatTime(seconds));
+      return;
+    }
+    
+    const seconds = data.timer_seconds_remaining ?? 0;
+    setTimerDisplay(formatTime(seconds));
+  };
+
+  // Format time as M:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(Math.max(0, seconds) / 60);
+    const secs = Math.max(0, seconds) % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Connect to event
   useEffect(() => {
@@ -67,6 +101,7 @@ function DisplayPageContent() {
         setEventData(data);
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
+        updateTimerDisplay(data);
         setIsConnected(true);
         
       } catch (err) {
@@ -90,6 +125,7 @@ function DisplayPageContent() {
           setEventData(data);
           setRedScore(extractRedScore(data));
           setBlueScore(extractBlueScore(data));
+          updateTimerDisplay(data);
         }
       } catch (err) {
         console.error('Sync error:', err);
@@ -110,8 +146,10 @@ function DisplayPageContent() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const event = formData.get('event') as string;
+              const mode = formData.get('mode') as string;
               if (event) {
-                window.location.href = `/display?event=${event.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+                const normalized = event.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                window.location.href = `/display?event=${normalized}${mode ? `&mode=${mode}` : ''}`;
               }
             }}
             className="space-y-4"
@@ -127,12 +165,32 @@ function DisplayPageContent() {
                 className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Display Mode
+              </label>
+              <select name="mode" className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg">
+                <option value="full">Full Display (with colored panels)</option>
+                <option value="overlay">Overlay Only (for OBS - transparent background)</option>
+              </select>
+            </div>
             <button
               type="submit"
               className="w-full p-4 bg-blue-600 text-white rounded-lg font-bold text-xl"
             >
               View Scores
             </button>
+            
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <strong>OBS Setup:</strong>
+              <ol className="list-decimal list-inside mt-2 space-y-1">
+                <li>Add a Browser Source in OBS</li>
+                <li>Use &quot;Overlay Only&quot; mode for transparent background</li>
+                <li>Set width/height to match your stream resolution</li>
+                <li>Add your camera as a separate Video Capture source</li>
+                <li>Layer the browser source over your camera</li>
+              </ol>
+            </div>
           </form>
         </div>
       </div>
@@ -186,32 +244,47 @@ function DisplayPageContent() {
     }
   };
 
+  // Overlay mode - just the score bar at bottom with transparent background
+  if (displayMode === 'overlay') {
+    return (
+      <div 
+        className="w-full h-screen flex flex-col justify-end"
+        style={{ backgroundColor: 'transparent' }}
+      >
+        {/* Score Bar at bottom */}
+        <div className="w-full">
+          <ScoreBar
+            redScore={redScore}
+            blueScore={blueScore}
+            redTeam1={eventData?.red_team1 || ''}
+            redTeam2={eventData?.red_team2 || ''}
+            blueTeam1={eventData?.blue_team1 || ''}
+            blueTeam2={eventData?.blue_team2 || ''}
+            motif={eventData?.motif || 'PPG'}
+            matchPhase={eventData?.match_state || 'NOT_STARTED'}
+            timeDisplay={timerDisplay}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Full display mode - colored panels with score bar
   return (
     <div 
       className="w-full h-screen flex flex-col overflow-hidden"
-      style={{ 
-        backgroundColor: COLORS.BLACK,
-        // Use aspect ratio matching reference (1382:776 = 1.78:1)
-        aspectRatio: '1382 / 776',
-        maxHeight: '100vh',
-        margin: '0 auto',
-      }}
+      style={{ backgroundColor: COLORS.BLACK }}
     >
-      {/* Video/Content Area - 83.12% of height, NO letterboxing */}
+      {/* Video/Content Area - 83.12% of height */}
       <div 
         className="flex w-full"
-        style={{ 
-          height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%`,
-          // Remove any letterboxing - content fills full width
-          objectFit: 'cover',
-        }}
+        style={{ height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%` }}
       >
         {/* Red Alliance Panel */}
         <div 
           className="flex-1 flex flex-col items-center justify-center"
           style={{ 
             backgroundColor: COLORS.RED_PRIMARY,
-            // No side margins - fills to edge
             padding: '2vh 2vw',
           }}
         >
@@ -264,7 +337,7 @@ function DisplayPageContent() {
               fontFamily: 'Arial, sans-serif',
             }}
           >
-            --:--
+            {timerDisplay}
           </div>
           
           {/* Phase */}
@@ -276,7 +349,7 @@ function DisplayPageContent() {
               fontFamily: 'Arial, sans-serif',
             }}
           >
-            {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase}
+            {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase.replace(/_/g, ' ')}
           </div>
           
           {/* Motif */}
@@ -307,7 +380,6 @@ function DisplayPageContent() {
           className="flex-1 flex flex-col items-center justify-center"
           style={{ 
             backgroundColor: COLORS.BLUE_PRIMARY,
-            // No side margins - fills to edge
             padding: '2vh 2vw',
           }}
         >
@@ -342,19 +414,24 @@ function DisplayPageContent() {
         </div>
       </div>
 
-      {/* Bottom Score Bar - 16.88% of height (131px at 776px baseline) */}
-      <div style={{ height: `${LAYOUT.OVERLAY_HEIGHT_PERCENT}%` }}>
-        <ScoreBar
-          redScore={redScore}
-          blueScore={blueScore}
-          redTeam1={eventData?.red_team1 || ''}
-          redTeam2={eventData?.red_team2 || ''}
-          blueTeam1={eventData?.blue_team1 || ''}
-          blueTeam2={eventData?.blue_team2 || ''}
-          motif={eventData?.motif || 'PPG'}
-          matchPhase={eventData?.match_state || 'NOT_STARTED'}
-          timeDisplay="--:--"
-        />
+      {/* Bottom Score Bar - 16.88% of height - centered */}
+      <div 
+        className="w-full flex items-center justify-center"
+        style={{ height: `${LAYOUT.OVERLAY_HEIGHT_PERCENT}%` }}
+      >
+        <div className="w-full h-full">
+          <ScoreBar
+            redScore={redScore}
+            blueScore={blueScore}
+            redTeam1={eventData?.red_team1 || ''}
+            redTeam2={eventData?.red_team2 || ''}
+            blueTeam1={eventData?.blue_team1 || ''}
+            blueTeam2={eventData?.blue_team2 || ''}
+            motif={eventData?.motif || 'PPG'}
+            matchPhase={eventData?.match_state || 'NOT_STARTED'}
+            timeDisplay={timerDisplay}
+          />
+        </div>
       </div>
     </div>
   );

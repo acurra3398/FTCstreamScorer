@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScoreBar from '@/components/ScoreBar';
 import MatchHistory from '@/components/MatchHistory';
@@ -13,9 +13,8 @@ import {
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
-  calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MATCH_STATES, VALID_MOTIFS } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -81,6 +80,50 @@ async function hostActionAPI(
   }
 }
 
+// Audio service hook for managing match sounds
+function useAudioService() {
+  const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
+  
+  useEffect(() => {
+    // Preload audio files
+    Object.entries(AUDIO_FILES).forEach(([key, path]) => {
+      const audio = new Audio(path);
+      audio.preload = 'auto';
+      audioRefs.current[key] = audio;
+    });
+    
+    return () => {
+      // Cleanup
+      Object.values(audioRefs.current).forEach(audio => {
+        audio.pause();
+        audio.src = '';
+      });
+    };
+  }, []);
+  
+  const playAudio = useCallback((key: string, onEnded?: () => void) => {
+    const audio = audioRefs.current[key];
+    if (audio) {
+      audio.currentTime = 0;
+      if (onEnded) {
+        audio.onended = onEnded;
+      }
+      audio.play().catch(err => console.error('Audio playback failed:', err));
+    } else if (onEnded) {
+      onEnded();
+    }
+  }, []);
+  
+  const stopAll = useCallback(() => {
+    Object.values(audioRefs.current).forEach(audio => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+  }, []);
+  
+  return { playAudio, stopAll };
+}
+
 function HostPageContent() {
   const searchParams = useSearchParams();
   const eventName = searchParams.get('event') || '';
@@ -104,6 +147,88 @@ function HostPageContent() {
   const [redTeam2, setRedTeam2] = useState('');
   const [blueTeam1, setBlueTeam1] = useState('');
   const [blueTeam2, setBlueTeam2] = useState('');
+  
+  // Camera state
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string>('');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+
+  // Timer state
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerPaused, setTimerPaused] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(MATCH_TIMING.AUTO_DURATION);
+  const [matchPhase, setMatchPhase] = useState<MatchState>('NOT_STARTED');
+  const [totalElapsed, setTotalElapsed] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const waitingForSound = useRef(false);
+  
+  const { playAudio, stopAll } = useAudioService();
+
+  // Format time display
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Load available cameras
+  useEffect(() => {
+    async function loadCameras() {
+      try {
+        // Request permission first
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter(device => device.kind === 'videoinput');
+        setAvailableCameras(cameras);
+        if (cameras.length > 0 && !selectedCamera) {
+          setSelectedCamera(cameras[0].deviceId);
+        }
+      } catch (err) {
+        console.error('Error loading cameras:', err);
+      }
+    }
+    loadCameras();
+  }, []);
+
+  // Start/stop camera when selection changes
+  useEffect(() => {
+    async function startCamera() {
+      if (!cameraEnabled || !selectedCamera) {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+          setCameraStream(null);
+        }
+        return;
+      }
+
+      try {
+        // Stop existing stream
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: selectedCamera } }
+        });
+        setCameraStream(stream);
+        
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error('Error starting camera:', err);
+      }
+    }
+    startCamera();
+
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [selectedCamera, cameraEnabled]);
 
   // Verify and connect to event
   useEffect(() => {
@@ -136,6 +261,7 @@ function HostPageContent() {
         setRedTeam2(data.red_team2 || '');
         setBlueTeam1(data.blue_team1 || '');
         setBlueTeam2(data.blue_team2 || '');
+        setMatchPhase(data.match_state || 'NOT_STARTED');
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
         
@@ -152,7 +278,7 @@ function HostPageContent() {
     connect();
   }, [eventName, password]);
 
-  // Poll for updates
+  // Poll for updates (but don't override local timer state)
   useEffect(() => {
     if (!isConnected || !eventName) return;
 
@@ -173,16 +299,139 @@ function HostPageContent() {
     return () => clearInterval(interval);
   }, [isConnected, eventName]);
 
-  // Host actions
-  const setMatchState = async (matchState: MatchState) => {
-    const result = await hostActionAPI(eventName, password, 'setMatchState', { matchState });
-    setActionStatus(result.message);
-    if (result.success) {
-      const data = await fetchEventAPI(eventName);
-      if (data) setEventData(data);
+  // Timer tick function
+  const tick = useCallback(() => {
+    if (waitingForSound.current) return;
+    
+    setTotalElapsed(prev => prev + 1);
+    
+    if (matchPhase === 'AUTONOMOUS') {
+      const remaining = MATCH_TIMING.AUTO_DURATION - totalElapsed - 1;
+      setSecondsRemaining(remaining);
+      
+      if (remaining <= 0 && !waitingForSound.current) {
+        waitingForSound.current = true;
+        playAudio('endauto', () => {
+          setMatchPhase('TRANSITION');
+          setTotalElapsed(0);
+          setSecondsRemaining(MATCH_TIMING.TRANSITION_DURATION);
+          waitingForSound.current = false;
+          playAudio('transition');
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' });
+        });
+      }
+    } else if (matchPhase === 'TRANSITION') {
+      const remaining = MATCH_TIMING.TRANSITION_DURATION - totalElapsed - 1;
+      setSecondsRemaining(remaining);
+      
+      if (remaining <= 0) {
+        setMatchPhase('TELEOP');
+        setTotalElapsed(0);
+        setSecondsRemaining(MATCH_TIMING.TELEOP_DURATION);
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TELEOP' });
+      }
+    } else if (matchPhase === 'TELEOP' || matchPhase === 'END_GAME') {
+      const remaining = MATCH_TIMING.TELEOP_DURATION - totalElapsed - 1;
+      setSecondsRemaining(remaining);
+      
+      // Check for endgame start (20 seconds remaining)
+      if (totalElapsed + 1 === MATCH_TIMING.ENDGAME_START && matchPhase !== 'END_GAME') {
+        setMatchPhase('END_GAME');
+        playAudio('endgame');
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'END_GAME' });
+      }
+      
+      if (remaining <= 0 && !waitingForSound.current) {
+        waitingForSound.current = true;
+        setTimerRunning(false);
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setMatchPhase('FINISHED');
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'FINISHED' });
+        
+        playAudio('endmatch', () => {
+          setMatchPhase('UNDER_REVIEW');
+          waitingForSound.current = false;
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'UNDER_REVIEW' });
+        });
+      }
     }
+  }, [matchPhase, totalElapsed, eventName, password, playAudio]);
+
+  // Timer effect
+  useEffect(() => {
+    if (timerRunning && !timerPaused) {
+      timerRef.current = setInterval(tick, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [timerRunning, timerPaused, tick]);
+
+  // Start match
+  const handleStart = async () => {
+    if (timerRunning) return;
+    
+    // Reset everything for new match
+    setTotalElapsed(0);
+    setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
+    waitingForSound.current = true;
+    
+    // Play countdown -> matchstart sequence
+    playAudio('countdown', () => {
+      playAudio('startmatch', () => {
+        setMatchPhase('AUTONOMOUS');
+        setTimerRunning(true);
+        setTimerPaused(false);
+        waitingForSound.current = false;
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' });
+      });
+    });
+    
+    setActionStatus('Match starting...');
   };
 
+  // Stop match
+  const handleStop = async () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setTimerRunning(false);
+    setTimerPaused(false);
+    setTotalElapsed(0);
+    setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
+    setMatchPhase('NOT_STARTED');
+    waitingForSound.current = false;
+    stopAll();
+    
+    await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
+    setActionStatus('Match stopped');
+  };
+
+  // Pause match
+  const handlePause = () => {
+    if (!timerRunning || timerPaused) return;
+    setTimerPaused(true);
+    setActionStatus('Match paused');
+  };
+
+  // Resume match
+  const handleResume = () => {
+    if (!timerRunning || !timerPaused) return;
+    setTimerPaused(false);
+    setActionStatus('Match resumed');
+  };
+
+  // Set motif
   const setMotif = async (motif: MotifType) => {
     const result = await hostActionAPI(eventName, password, 'setMotif', { motif });
     setActionStatus(result.message);
@@ -192,6 +441,7 @@ function HostPageContent() {
     }
   };
 
+  // Update teams
   const updateTeams = async () => {
     const result = await hostActionAPI(eventName, password, 'setTeams', {
       redTeam1,
@@ -202,8 +452,11 @@ function HostPageContent() {
     setActionStatus(result.message);
   };
 
+  // Reset scores
   const resetScores = async () => {
     if (!confirm('Reset all scores for a new match? This cannot be undone.')) return;
+    
+    handleStop();
     
     const result = await hostActionAPI(eventName, password, 'resetScores');
     setActionStatus(result.message);
@@ -255,8 +508,8 @@ function HostPageContent() {
           blueTeam1={eventData?.blue_team1 || ''}
           blueTeam2={eventData?.blue_team2 || ''}
           motif={eventData?.motif || 'PPG'}
-          matchPhase={eventData?.match_state || 'NOT_STARTED'}
-          timeDisplay="--:--"
+          matchPhase={matchPhase}
+          timeDisplay={formatTime(secondsRemaining)}
         />
       </div>
 
@@ -289,24 +542,76 @@ function HostPageContent() {
       )}
 
       {/* Host Controls */}
-      <div className="flex-1 p-4 space-y-6">
-        {/* Match State Control */}
+      <div className="flex-1 p-4 space-y-6 overflow-auto">
+        {/* Timer Control */}
         <div className="bg-white rounded-lg p-4 shadow">
-          <h3 className="text-lg font-bold mb-3">⏱️ Match State</h3>
-          <div className="flex flex-wrap gap-2">
-            {VALID_MATCH_STATES.map((state) => (
+          <h3 className="text-lg font-bold mb-3">⏱️ Match Timer</h3>
+          
+          {/* Timer Display */}
+          <div className="text-center mb-4">
+            <div className="text-6xl font-bold font-mono mb-2">
+              {formatTime(secondsRemaining)}
+            </div>
+            <div className={`text-xl font-bold ${
+              matchPhase === 'AUTONOMOUS' ? 'text-green-600' :
+              matchPhase === 'TRANSITION' ? 'text-yellow-600' :
+              matchPhase === 'TELEOP' ? 'text-blue-600' :
+              matchPhase === 'END_GAME' ? 'text-orange-600' :
+              matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW' ? 'text-red-600' :
+              'text-gray-600'
+            }`}>
+              {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase.replace(/_/g, ' ')}
+            </div>
+            {timerPaused && (
+              <div className="text-lg text-yellow-600 font-bold mt-1">⏸️ PAUSED</div>
+            )}
+          </div>
+          
+          {/* Timer Control Buttons */}
+          <div className="flex flex-wrap gap-3 justify-center">
+            {!timerRunning ? (
               <button
-                key={state}
-                onClick={() => setMatchState(state as MatchState)}
-                className={`px-4 py-2 rounded font-bold transition-colors ${
-                  eventData?.match_state === state
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-200 hover:bg-gray-300'
-                }`}
+                onClick={handleStart}
+                className="px-8 py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-700 transition-colors"
               >
-                {state.replace(/_/g, ' ')}
+                ▶️ Start Match
               </button>
-            ))}
+            ) : (
+              <>
+                <button
+                  onClick={handleStop}
+                  className="px-6 py-3 bg-red-600 text-white rounded-lg font-bold text-lg hover:bg-red-700 transition-colors"
+                >
+                  ⏹️ Stop
+                </button>
+                {!timerPaused ? (
+                  <button
+                    onClick={handlePause}
+                    className="px-6 py-3 bg-yellow-500 text-white rounded-lg font-bold text-lg hover:bg-yellow-600 transition-colors"
+                  >
+                    ⏸️ Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleResume}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
+                  >
+                    ▶️ Resume
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* Match Timeline */}
+          <div className="mt-4 text-sm text-gray-600 text-center">
+            <span>AUTO (0:30)</span>
+            <span className="mx-2">→</span>
+            <span>TRANSITION (0:08)</span>
+            <span className="mx-2">→</span>
+            <span>TELEOP (2:00)</span>
+            <span className="mx-2">→</span>
+            <span>ENDGAME (last 0:20)</span>
           </div>
         </div>
 
@@ -327,6 +632,58 @@ function HostPageContent() {
                 {motif} - {MOTIF_NAMES[motif]?.split('(')[1]?.replace(')', '') || motif}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Camera Preview (for host reference) */}
+        <div className="bg-white rounded-lg p-4 shadow">
+          <h3 className="text-lg font-bold mb-3">📹 Camera Preview</h3>
+          <div className="space-y-3">
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedCamera}
+                onChange={(e) => setSelectedCamera(e.target.value)}
+                className="flex-1 p-2 border rounded"
+                disabled={availableCameras.length === 0}
+              >
+                {availableCameras.length === 0 ? (
+                  <option value="">No cameras found</option>
+                ) : (
+                  availableCameras.map((camera) => (
+                    <option key={camera.deviceId} value={camera.deviceId}>
+                      {camera.label || `Camera ${availableCameras.indexOf(camera) + 1}`}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                onClick={() => setCameraEnabled(!cameraEnabled)}
+                className={`px-4 py-2 rounded font-bold transition-colors ${
+                  cameraEnabled 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {cameraEnabled ? '⏹️ Stop' : '▶️ Start'}
+              </button>
+            </div>
+            
+            {/* Camera preview */}
+            {cameraEnabled && (
+              <div className="relative bg-black rounded overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            
+            <p className="text-sm text-gray-600">
+              <strong>For OBS:</strong> Add the Display page as a Browser Source in OBS. You can add your camera as a separate Video Capture source and layer it with the score overlay.
+            </p>
           </div>
         </div>
 

@@ -59,6 +59,26 @@ export const VALID_MATCH_STATES = ['NOT_STARTED', 'AUTONOMOUS', 'TRANSITION', 'T
 // Valid motif types (shared between client and server)
 export const VALID_MOTIFS = ['PPG', 'PGP', 'GPP'] as const;
 
+// Match timing constants (FTC DECODE)
+export const MATCH_TIMING = {
+  AUTO_DURATION: 30,        // 30 seconds autonomous
+  TRANSITION_DURATION: 8,   // 8 seconds transition (drivers pick up controllers)
+  TELEOP_DURATION: 120,     // 2 minutes teleop
+  ENDGAME_START: 100,       // End game starts at 100 seconds into teleop (20 sec remaining)
+  TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
+};
+
+// Audio file paths
+export const AUDIO_FILES = {
+  countdown: '/audio/countdown.wav',
+  startmatch: '/audio/startmatch.mp3',
+  endauto: '/audio/endauto.wav',
+  transition: '/audio/transition.mp3',
+  endgame: '/audio/endgame_start.mp3',
+  endmatch: '/audio/endmatch.mp3',
+  results: '/audio/results.wav',
+};
+
 // Motif display names
 export const MOTIF_NAMES: Record<string, string> = {
   PPG: 'PPG (Purple-Purple-Green)',

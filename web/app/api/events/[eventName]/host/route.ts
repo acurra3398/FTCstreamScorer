@@ -109,8 +109,22 @@ export async function PATCH(
         if (data?.blueTeam2 !== undefined) updateData.blue_team2 = data.blueTeam2;
         break;
 
+      case 'setLivestreamUrl':
+        if (data?.livestreamUrl !== undefined) {
+          updateData.livestream_url = data.livestreamUrl;
+        }
+        break;
+
+      case 'updateTimerState':
+        if (data?.timerRunning !== undefined) updateData.timer_running = data.timerRunning;
+        if (data?.timerPaused !== undefined) updateData.timer_paused = data.timerPaused;
+        if (data?.timerSecondsRemaining !== undefined) updateData.timer_seconds_remaining = data.timerSecondsRemaining;
+        if (data?.timerStartedAt !== undefined) updateData.timer_started_at = data.timerStartedAt;
+        if (data?.timerPausedAt !== undefined) updateData.timer_paused_at = data.timerPausedAt;
+        break;
+
       case 'resetScores':
-        // Reset all scores to zero
+        // Reset all scores to zero and reset timer state
         updateData = {
           red_auto_classified: 0,
           red_auto_overflow: 0,
@@ -139,6 +153,11 @@ export async function PATCH(
           blue_major_fouls: 0,
           blue_minor_fouls: 0,
           match_state: 'NOT_STARTED',
+          timer_running: false,
+          timer_paused: false,
+          timer_seconds_remaining: 30,
+          timer_started_at: null,
+          timer_paused_at: null,
         };
         break;
 
