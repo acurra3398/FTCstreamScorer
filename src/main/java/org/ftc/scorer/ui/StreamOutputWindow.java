@@ -784,8 +784,10 @@ public class StreamOutputWindow {
         topBar.setVisible(false);
         scoreBar.setVisible(false);
         
-        // Try to play winner video first
-        if (!isTie && (videoService.hasWinnerVideo(redWins))) {
+        // Try to play appropriate video first (tie video for ties, winner video otherwise)
+        boolean hasVideo = isTie ? videoService.hasTieVideo() : videoService.hasWinnerVideo(redWins);
+        
+        if (hasVideo) {
             // Create video overlay
             StackPane videoOverlay = new StackPane();
             videoOverlay.setStyle("-fx-background-color: black;");
@@ -798,12 +800,18 @@ public class StreamOutputWindow {
             root.getChildren().add(videoOverlay);
             
             // Play video, then show breakdown
-            videoService.playWinnerVideo(redWins, () -> {
+            Runnable onVideoFinished = () -> {
                 javafx.application.Platform.runLater(() -> {
                     root.getChildren().remove(videoOverlay);
                     showBreakdownContent(redWins, isTie);
                 });
-            });
+            };
+            
+            if (isTie) {
+                videoService.playTieVideo(onVideoFinished);
+            } else {
+                videoService.playWinnerVideo(redWins, onVideoFinished);
+            }
         } else {
             // No video, show breakdown directly
             showBreakdownContent(redWins, isTie);

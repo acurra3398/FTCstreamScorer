@@ -11,6 +11,7 @@ import java.net.URL;
  * Supports WebM and MP4 formats:
  * - red_winner.webm or red_winner.mp4 for red alliance victory
  * - blue_winner.webm or blue_winner.mp4 for blue alliance victory
+ * - tie.webm or tie.mp4 for tie matches
  */
 public class VideoService {
     private MediaPlayer currentPlayer;
@@ -44,6 +45,24 @@ public class VideoService {
             playVideo(videoPath, onFinished);
         } else {
             System.out.println("No winner video found for " + baseName + " - Showing results directly");
+            if (onFinished != null) {
+                onFinished.run();
+            }
+        }
+    }
+    
+    /**
+     * Play the tie video when scores are equal
+     * Tries WebM first, then MP4 as fallback
+     * @param onFinished callback when video finishes or if video not found
+     */
+    public void playTieVideo(Runnable onFinished) {
+        String baseName = "/videos/tie";
+        String videoPath = findVideoPath(baseName);
+        if (videoPath != null) {
+            playVideo(videoPath, onFinished);
+        } else {
+            System.out.println("No tie video found - Showing results directly");
             if (onFinished != null) {
                 onFinished.run();
             }
@@ -117,6 +136,14 @@ public class VideoService {
     public boolean hasWinnerVideo(boolean redWins) {
         String baseName = redWins ? "/videos/red_winner" : "/videos/blue_winner";
         return findVideoPath(baseName) != null;
+    }
+    
+    /**
+     * Check if a tie video exists (in any supported format)
+     * @return true if the tie video file exists
+     */
+    public boolean hasTieVideo() {
+        return findVideoPath("/videos/tie") != null;
     }
     
     /**

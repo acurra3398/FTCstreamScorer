@@ -1,9 +1,10 @@
 # Winner Videos
 
-Place your winner celebration videos in this folder:
+Place your celebration videos in this folder:
 
 - `red_winner.webm` or `red_winner.mp4` - Played when Red Alliance wins
 - `blue_winner.webm` or `blue_winner.mp4` - Played when Blue Alliance wins
+- `tie.webm` or `tie.mp4` - Played when scores are tied
 
 ## Supported Formats
 
@@ -20,8 +21,8 @@ The application will try WebM first, then fall back to MP4 if not found.
 ## Behavior
 
 When the user clicks "Show Final Results":
-1. The appropriate winner video plays full-screen
+1. The appropriate video plays full-screen (winner video or tie video)
 2. After the video ends, the final results overlay appears
-3. The winning alliance is highlighted with a "WINNER" badge
+3. The winning alliance is highlighted with a "WINNER" badge (or "TIE MATCH" for ties)
 
 If the video files are not found, the final results will be shown immediately without video playback.

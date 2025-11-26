@@ -100,11 +100,12 @@ You can have multiple devices scoring different alliances and sync them to a mai
 
 When you click "Show Final Results", the app can play a celebration video before displaying the final scores.
 
-### Setting Up Winner Videos
+### Setting Up Videos
 
-1. Create two video files:
+1. Create your video files:
    - `red_winner.webm` or `red_winner.mp4` - plays when Red Alliance wins
    - `blue_winner.webm` or `blue_winner.mp4` - plays when Blue Alliance wins
+   - `tie.webm` or `tie.mp4` - plays when scores are tied
 
 2. Place them in: `src/main/resources/videos/`
 
