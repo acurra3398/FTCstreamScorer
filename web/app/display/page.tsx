@@ -44,7 +44,9 @@ async function fetchEventAPI(eventName: string): Promise<EventData | null> {
 function DisplayPageContent() {
   const searchParams = useSearchParams();
   const eventName = searchParams.get('event') || '';
-  const displayMode = searchParams.get('mode') || 'full'; // 'full' or 'overlay'
+  // Validate display mode parameter - only allow 'full' or 'overlay'
+  const modeParam = searchParams.get('mode') || 'full';
+  const displayMode = modeParam === 'overlay' ? 'overlay' : 'full';
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -247,10 +249,7 @@ function DisplayPageContent() {
   // Overlay mode - just the score bar at bottom with transparent background
   if (displayMode === 'overlay') {
     return (
-      <div 
-        className="w-full h-screen flex flex-col justify-end"
-        style={{ backgroundColor: 'transparent' }}
-      >
+      <div className="w-full h-screen flex flex-col justify-end bg-transparent">
         {/* Score Bar at bottom */}
         <div className="w-full">
           <ScoreBar

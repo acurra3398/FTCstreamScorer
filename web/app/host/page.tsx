@@ -317,7 +317,7 @@ function HostPageContent() {
           setSecondsRemaining(MATCH_TIMING.TRANSITION_DURATION);
           waitingForSound.current = false;
           playAudio('transition');
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' });
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' }).catch(console.error);
         });
       }
     } else if (matchPhase === 'TRANSITION') {
@@ -328,7 +328,7 @@ function HostPageContent() {
         setMatchPhase('TELEOP');
         setTotalElapsed(0);
         setSecondsRemaining(MATCH_TIMING.TELEOP_DURATION);
-        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TELEOP' });
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TELEOP' }).catch(console.error);
       }
     } else if (matchPhase === 'TELEOP' || matchPhase === 'END_GAME') {
       const remaining = MATCH_TIMING.TELEOP_DURATION - totalElapsed - 1;
@@ -338,7 +338,7 @@ function HostPageContent() {
       if (totalElapsed + 1 === MATCH_TIMING.ENDGAME_START && matchPhase !== 'END_GAME') {
         setMatchPhase('END_GAME');
         playAudio('endgame');
-        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'END_GAME' });
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'END_GAME' }).catch(console.error);
       }
       
       if (remaining <= 0 && !waitingForSound.current) {
@@ -349,12 +349,12 @@ function HostPageContent() {
           timerRef.current = null;
         }
         setMatchPhase('FINISHED');
-        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'FINISHED' });
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'FINISHED' }).catch(console.error);
         
         playAudio('endmatch', () => {
           setMatchPhase('UNDER_REVIEW');
           waitingForSound.current = false;
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'UNDER_REVIEW' });
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'UNDER_REVIEW' }).catch(console.error);
         });
       }
     }
@@ -392,7 +392,7 @@ function HostPageContent() {
         setTimerRunning(true);
         setTimerPaused(false);
         waitingForSound.current = false;
-        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' });
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
       });
     });
     
@@ -413,8 +413,13 @@ function HostPageContent() {
     waitingForSound.current = false;
     stopAll();
     
-    await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
-    setActionStatus('Match stopped');
+    try {
+      await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
+      setActionStatus('Match stopped');
+    } catch (err) {
+      console.error('Error stopping match:', err);
+      setActionStatus('Match stopped (sync error)');
+    }
   };
 
   // Pause match
