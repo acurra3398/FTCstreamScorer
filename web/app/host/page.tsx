@@ -17,7 +17,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -409,12 +409,11 @@ function HostPageContent() {
         
         // Poll for display's answer with timeout
         let pollAttempts = 0;
-        const maxPollAttempts = 30; // 30 seconds timeout
         const pollForAnswer = setInterval(async () => {
           pollAttempts++;
           
-          // Timeout after 30 seconds
-          if (pollAttempts > maxPollAttempts) {
+          // Timeout after max attempts
+          if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
             clearInterval(pollForAnswer);
             setAudioStatus('⏱️ Connection timeout - Display may not be connected');
             return;
@@ -453,7 +452,7 @@ function HostPageContent() {
           } catch (err) {
             console.error('Error polling for audio answer:', err);
           }
-        }, 1000);
+        }, WEBRTC_POLLING.INTERVAL_MS);
         
         // Store interval ID for cleanup
         const currentPollRef = { interval: pollForAnswer };
@@ -543,12 +542,11 @@ function HostPageContent() {
         
         // Poll for display's answer with timeout
         let pollAttempts = 0;
-        const maxPollAttempts = 30; // 30 seconds timeout
         const pollForAnswer = setInterval(async () => {
           pollAttempts++;
           
-          // Timeout after 30 seconds
-          if (pollAttempts > maxPollAttempts) {
+          // Timeout after max attempts
+          if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
             clearInterval(pollForAnswer);
             setCameraStatus('⏱️ Connection timeout - Display may not be connected');
             return;
@@ -587,7 +585,7 @@ function HostPageContent() {
           } catch (err) {
             console.error('Error polling for video answer:', err);
           }
-        }, 1000);
+        }, WEBRTC_POLLING.INTERVAL_MS);
         
         // Store interval ID in a ref for proper cleanup on component unmount
         const currentPollRef = { interval: pollForAnswer };

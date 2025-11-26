@@ -130,3 +130,9 @@ export const WEBRTC_CONFIG: RTCConfiguration = {
   ],
   iceCandidatePoolSize: 10,
 };
+
+// WebRTC signaling polling configuration
+export const WEBRTC_POLLING = {
+  MAX_ATTEMPTS: 30,        // Maximum polling attempts before timeout
+  INTERVAL_MS: 1000,       // Polling interval in milliseconds
+};
