@@ -6,6 +6,7 @@ import ScoreBar from '@/components/ScoreBar';
 import { 
   DecodeScore, 
   EventData, 
+  SupabaseNotConfiguredError,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
@@ -56,7 +57,11 @@ function DisplayPageContent() {
         setIsConnected(true);
         
       } catch (err) {
-        setError('Connection failed');
+        if (err instanceof SupabaseNotConfiguredError) {
+          setError('Database not configured. Please set up Supabase backend first.');
+        } else {
+          setError('Connection failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        }
       } finally {
         setIsLoading(false);
       }
