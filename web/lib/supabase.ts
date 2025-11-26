@@ -239,6 +239,85 @@ export async function hashPassword(password: string): Promise<string> {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+// Create a new event (scrimmage)
+export async function createEvent(
+  eventName: string,
+  password: string
+): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, message: 'Supabase not configured. Please set up the backend.' };
+  }
+  
+  const normalizedName = eventName.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  
+  // Check if event already exists
+  const { data: existing } = await client
+    .from('events')
+    .select('event_name')
+    .eq('event_name', normalizedName)
+    .single();
+  
+  if (existing) {
+    return { success: false, message: `Event '${eventName}' already exists. Use 'Join Event' to connect.` };
+  }
+  
+  // Hash the password
+  const passwordHash = await hashPassword(password);
+  
+  // Create default event data
+  const eventData: Partial<EventData> = {
+    event_name: normalizedName,
+    password_hash: passwordHash,
+    motif: 'PPG',
+    match_state: 'NOT_STARTED',
+    red_team1: '',
+    red_team2: '',
+    blue_team1: '',
+    blue_team2: '',
+    red_auto_classified: 0,
+    red_auto_overflow: 0,
+    red_auto_pattern: 0,
+    red_teleop_classified: 0,
+    red_teleop_overflow: 0,
+    red_teleop_depot: 0,
+    red_teleop_pattern: 0,
+    red_robot1_leave: false,
+    red_robot2_leave: false,
+    red_robot1_base: 'NOT_IN_BASE',
+    red_robot2_base: 'NOT_IN_BASE',
+    red_major_fouls: 0,
+    red_minor_fouls: 0,
+    blue_auto_classified: 0,
+    blue_auto_overflow: 0,
+    blue_auto_pattern: 0,
+    blue_teleop_classified: 0,
+    blue_teleop_overflow: 0,
+    blue_teleop_depot: 0,
+    blue_teleop_pattern: 0,
+    blue_robot1_leave: false,
+    blue_robot2_leave: false,
+    blue_robot1_base: 'NOT_IN_BASE',
+    blue_robot2_base: 'NOT_IN_BASE',
+    blue_major_fouls: 0,
+    blue_minor_fouls: 0,
+  };
+  
+  const { error } = await client
+    .from('events')
+    .insert(eventData);
+  
+  if (error) {
+    console.error('Error creating event:', error);
+    return { success: false, message: 'Failed to create event: ' + error.message };
+  }
+  
+  return { 
+    success: true, 
+    message: `Event '${normalizedName}' created successfully!\n\nShare this with your referees:\nEvent: ${normalizedName}\nPassword: (the one you entered)` 
+  };
+}
+
 // Fetch event by name
 export async function fetchEvent(eventName: string): Promise<EventData | null> {
   const client = getSupabaseClient();
