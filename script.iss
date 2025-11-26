@@ -58,7 +58,7 @@ OutputBaseFilename=FTCStreamScorer-Setup
 
 ; Better compression and modern wizard UI
 SolidCompression=yes
-WizardStyle=modern polar
+WizardStyle=modern
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
