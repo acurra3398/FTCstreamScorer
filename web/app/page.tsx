@@ -324,6 +324,8 @@ export default function HomePage() {
           <a href="https://github.com" className="hover:text-gray-300">GitHub</a>
           {' • '}
           <a href="https://firstinspires.org" className="hover:text-gray-300">FIRST Inspires</a>
+          {' • '}
+          <Link href="/admin" className="hover:text-gray-300">Admin</Link>
         </p>
       </footer>
     </main>

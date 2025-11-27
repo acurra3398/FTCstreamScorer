@@ -48,6 +48,9 @@ export interface EventData {
   // Transition period message ("DRIVERS PICK UP CONTROLLERS" or "3", "2", "1")
   transition_message?: string | null;
   
+  // Host control to show camera on display after scores released
+  show_camera_override?: boolean;
+  
   // Camera livestream URL
   livestream_url: string;
   

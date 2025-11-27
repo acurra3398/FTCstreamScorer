@@ -250,6 +250,9 @@ function HostPageContent() {
   // Show score editing tab
   const [showScoreEdit, setShowScoreEdit] = useState(false);
   
+  // Show camera on display control (host controls what display shows after results)
+  const [showCameraOnDisplay, setShowCameraOnDisplay] = useState(false);
+  
   const { playAudio, stopAll } = useAudioService();
 
   // Format time display
@@ -292,6 +295,11 @@ function HostPageContent() {
     await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'SCORES_RELEASED' });
     setMatchPhase('SCORES_RELEASED');
     
+    // Auto-stop recording when results are released
+    if (isRecording) {
+      stopRecording();
+    }
+    
     // Play results sound
     playAudio('results');
     
@@ -300,6 +308,14 @@ function HostPageContent() {
       blueTotal > redTotal ? 'BLUE WINS!' : 
       'TIE!'
     } Red: ${redTotal}, Blue: ${blueTotal}`);
+  };
+  
+  // Toggle show camera on display (after results are released)
+  const handleToggleCameraOnDisplay = async () => {
+    const newValue = !showCameraOnDisplay;
+    setShowCameraOnDisplay(newValue);
+    await hostActionAPI(eventName, password, 'setShowCamera', { showCamera: newValue });
+    setActionStatus(newValue ? 'Display now showing camera' : 'Display now showing final scores');
   };
   
   // Start recording match video/audio
@@ -380,6 +396,111 @@ function HostPageContent() {
       setRecordingStatus('Failed to start recording: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   }, [cameraStream, audioStream, matchHistory.length]);
+  
+  // Start screen recording (captures display with score bar and sound effects)
+  const startScreenRecording = useCallback(async () => {
+    try {
+      setRecordingStatus('Requesting screen capture permission...');
+      
+      // Request screen capture with system audio
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: 'browser',
+        },
+        audio: true, // Capture system audio (including sound effects)
+      });
+      
+      // Also capture microphone if available
+      let micStream: MediaStream | null = null;
+      if (selectedMicrophone) {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: selectedMicrophone } }
+          });
+        } catch {
+          console.log('Could not capture microphone for screen recording');
+        }
+      }
+      
+      // Combine streams
+      const tracks: MediaStreamTrack[] = [...displayStream.getTracks()];
+      if (micStream) {
+        micStream.getAudioTracks().forEach(track => tracks.push(track));
+      }
+      
+      const combinedStream = new MediaStream(tracks);
+      
+      // Try to use WebM with VP9/Opus codecs for best quality
+      let mimeType = 'video/webm;codecs=vp9,opus';
+      let fileExtension = 'webm';
+      
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 4000000, // Higher bitrate for screen recording
+      });
+      
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        // Stop all display tracks
+        displayStream.getTracks().forEach(track => track.stop());
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop());
+        }
+        
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setRecordedBlobUrl(url);
+        setRecordedMatchNumber(matchHistory.length + 1);
+        setRecordedFileExtension(fileExtension);
+        setRecordingStatus(`Screen recording saved! Click download to save.`);
+        setIsRecording(false);
+      };
+      
+      // Handle when user stops sharing
+      displayStream.getVideoTracks()[0].onended = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      };
+      
+      mediaRecorder.onerror = (event) => {
+        console.error('Screen recording error:', event);
+        setRecordingStatus('Screen recording error occurred');
+        setIsRecording(false);
+        displayStream.getTracks().forEach(track => track.stop());
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop());
+        }
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000);
+      setIsRecording(true);
+      setRecordingStatus(`🔴 Screen recording (includes score bar & sounds)...`);
+      
+    } catch (err) {
+      console.error('Error starting screen recording:', err);
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setRecordingStatus('Screen capture permission denied');
+      } else {
+        setRecordingStatus('Failed to start screen recording: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    }
+  }, [matchHistory.length, selectedMicrophone]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -1406,12 +1527,28 @@ function HostPageContent() {
           
           {/* Release Final Scores button - only show when match is finished or under review */}
           {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 flex justify-center gap-4">
               <button
                 onClick={handleReleaseFinalScores}
                 className="px-8 py-4 bg-purple-700 text-white rounded-lg font-bold text-xl hover:bg-purple-800 transition-colors animate-pulse"
               >
                 🏆 Release Final Scores
+              </button>
+            </div>
+          )}
+          
+          {/* Show Camera on Display button - only show after scores are released */}
+          {matchPhase === 'SCORES_RELEASED' && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleToggleCameraOnDisplay}
+                className={`px-6 py-3 rounded-lg font-bold text-lg transition-colors ${
+                  showCameraOnDisplay 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {showCameraOnDisplay ? '📊 Show Scores on Display' : '📹 Show Camera on Display'}
               </button>
             </div>
           )}
@@ -1656,7 +1793,7 @@ function HostPageContent() {
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">🎬 Match Recording</h3>
           <p className="text-sm text-gray-600 mb-3">
-            Record video and audio manually. Start and stop recording at any time. Downloads are saved as {recordedFileExtension.toUpperCase()} format.
+            Record matches with video and audio. Choose between camera recording or screen capture (includes score bar and sound effects).
           </p>
           <div className="space-y-3">
             {/* Recording status */}
@@ -1675,13 +1812,23 @@ function HostPageContent() {
             
             {/* Recording controls */}
             <div className="flex gap-2 items-center flex-wrap">
-              {!isRecording && !recordedBlobUrl && (cameraStream || audioStream) && (
-                <button
-                  onClick={startRecording}
-                  className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
-                >
-                  🔴 Start Recording
-                </button>
+              {!isRecording && !recordedBlobUrl && (
+                <>
+                  {(cameraStream || audioStream) && (
+                    <button
+                      onClick={startRecording}
+                      className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
+                    >
+                      🔴 Record Camera
+                    </button>
+                  )}
+                  <button
+                    onClick={startScreenRecording}
+                    className="px-4 py-2 bg-purple-600 text-white rounded font-bold hover:bg-purple-700"
+                  >
+                    🖥️ Record Screen (with score bar & sounds)
+                  </button>
+                </>
               )}
               
               {isRecording && (
@@ -1709,12 +1856,6 @@ function HostPageContent() {
                   </button>
                 </>
               )}
-              
-              {!isRecording && !recordedBlobUrl && !cameraStream && !audioStream && (
-                <div className="text-sm text-yellow-600">
-                  ⚠️ Enable camera or microphone to record matches
-                </div>
-              )}
             </div>
             
             {/* Preview recorded video */}
@@ -1730,7 +1871,8 @@ function HostPageContent() {
             )}
             
             <p className="text-xs text-gray-500">
-              <strong>Note:</strong> Recordings are saved locally in your browser. Click the download button to save them to your device.
+              <strong>💡 Tip:</strong> Use &quot;Record Screen&quot; to capture the display page with the score bar and sound effects. 
+              Open the display page in another browser tab/window, then select that tab when prompted.
             </p>
           </div>
         </div>
