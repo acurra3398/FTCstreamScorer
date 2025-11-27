@@ -109,6 +109,7 @@ export default function HomePage() {
         <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
           🏆 FTC Stream Scorer
         </h1>
+        <p className="text-sm text-gray-400 mb-2">Designed by #30329 Mechanical Masterminds</p>
         <p className="text-xl text-gray-300">DECODE 2025-2026</p>
         <p className="text-gray-400 mt-2">Web-based referee scoring for iPads & tablets</p>
       </div>

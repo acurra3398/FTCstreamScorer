@@ -68,6 +68,7 @@ export const MATCH_TIMING = {
   TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
   COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence (matches countdown.wav timing)
   COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds (matches countdown.wav timing)
+  TRANSITION_COUNTDOWN_START: 3, // Seconds remaining in transition to show countdown (3, 2, 1)
 };
 
 // Audio file paths
@@ -94,6 +95,21 @@ export const MOTIF_NAMES: Record<string, string> = {
   PGP: 'PGP (Purple-Green-Purple)',
   GPP: 'GPP (Green-Purple-Purple)',
 };
+
+// Motif emoji display - converts P to 🟣 and G to 🟢
+export function motifToEmoji(motif: string): string {
+  if (!motif || typeof motif !== 'string') return '';
+  
+  return motif
+    .toUpperCase()
+    .split('')
+    .map(char => {
+      if (char === 'P') return '🟣';
+      if (char === 'G') return '🟢';
+      return char; // Keep other characters as-is
+    })
+    .join('');
+}
 
 // Base status display names
 export const BASE_STATUS_NAMES: Record<string, string> = {
@@ -137,6 +153,8 @@ export const WEBRTC_POLLING = {
   INTERVAL_MS: 1000,       // Polling interval in milliseconds
   RECONNECT_DELAY_MS: 2000, // Delay before attempting reconnection
   MAX_RECONNECT_ATTEMPTS: 5, // Maximum reconnection attempts
+  CONNECTION_TIMEOUT_MS: 15000, // Timeout for WebRTC connection attempts
+  ICE_DEBOUNCE_MS: 100,    // Debounce time for ICE candidate batching
 };
 
 // Audio volume configuration

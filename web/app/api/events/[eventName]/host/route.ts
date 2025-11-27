@@ -126,6 +126,7 @@ export async function PATCH(
         if (data?.timerStartedAt !== undefined) updateData.timer_started_at = data.timerStartedAt;
         if (data?.timerPausedAt !== undefined) updateData.timer_paused_at = data.timerPausedAt;
         if (data?.countdownNumber !== undefined) updateData.countdown_number = data.countdownNumber;
+        if (data?.transitionMessage !== undefined) updateData.transition_message = data.transitionMessage;
         break;
 
       case 'setCountdown':
@@ -189,6 +190,7 @@ export async function PATCH(
           timer_paused_at: null,
           timer_last_sync: new Date().toISOString(),
           countdown_number: null,
+          transition_message: null,
           audio_enabled: false,
           audio_sdp_offer: '',
           audio_sdp_answer: '',

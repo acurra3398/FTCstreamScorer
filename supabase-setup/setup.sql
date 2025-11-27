@@ -82,6 +82,12 @@ CREATE TABLE IF NOT EXISTS events (
     -- Pre-match countdown number (5, 4, 3, 2, 1)
     countdown_number INTEGER,
     
+    -- Transition period message ("DRIVERS PICK UP CONTROLLERS" or "3", "2", "1")
+    transition_message TEXT DEFAULT NULL,
+    
+    -- Audio ICE candidates from display
+    audio_ice_candidates_display TEXT DEFAULT '[]',
+    
     -- Timestamps
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
