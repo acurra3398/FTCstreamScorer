@@ -250,6 +250,9 @@ function HostPageContent() {
   // Show score editing tab
   const [showScoreEdit, setShowScoreEdit] = useState(false);
   
+  // Show camera on display control (host controls what display shows after results)
+  const [showCameraOnDisplay, setShowCameraOnDisplay] = useState(false);
+  
   const { playAudio, stopAll } = useAudioService();
 
   // Format time display
@@ -292,6 +295,11 @@ function HostPageContent() {
     await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'SCORES_RELEASED' });
     setMatchPhase('SCORES_RELEASED');
     
+    // Auto-stop recording when results are released
+    if (isRecording) {
+      stopRecording();
+    }
+    
     // Play results sound
     playAudio('results');
     
@@ -300,6 +308,14 @@ function HostPageContent() {
       blueTotal > redTotal ? 'BLUE WINS!' : 
       'TIE!'
     } Red: ${redTotal}, Blue: ${blueTotal}`);
+  };
+  
+  // Toggle show camera on display (after results are released)
+  const handleToggleCameraOnDisplay = async () => {
+    const newValue = !showCameraOnDisplay;
+    setShowCameraOnDisplay(newValue);
+    await hostActionAPI(eventName, password, 'setShowCamera', { showCamera: newValue });
+    setActionStatus(newValue ? 'Display now showing camera' : 'Display now showing final scores');
   };
   
   // Start recording match video/audio
@@ -1406,12 +1422,28 @@ function HostPageContent() {
           
           {/* Release Final Scores button - only show when match is finished or under review */}
           {(matchPhase === 'FINISHED' || matchPhase === 'UNDER_REVIEW') && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 flex justify-center gap-4">
               <button
                 onClick={handleReleaseFinalScores}
                 className="px-8 py-4 bg-purple-700 text-white rounded-lg font-bold text-xl hover:bg-purple-800 transition-colors animate-pulse"
               >
                 🏆 Release Final Scores
+              </button>
+            </div>
+          )}
+          
+          {/* Show Camera on Display button - only show after scores are released */}
+          {matchPhase === 'SCORES_RELEASED' && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleToggleCameraOnDisplay}
+                className={`px-6 py-3 rounded-lg font-bold text-lg transition-colors ${
+                  showCameraOnDisplay 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {showCameraOnDisplay ? '📊 Show Scores on Display' : '📹 Show Camera on Display'}
               </button>
             </div>
           )}

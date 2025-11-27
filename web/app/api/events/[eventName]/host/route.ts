@@ -150,6 +150,11 @@ export async function PATCH(
         if (data?.videoIceCandidatesHost !== undefined) updateData.video_ice_candidates_host = data.videoIceCandidatesHost;
         if (data?.videoIceCandidatesDisplay !== undefined) updateData.video_ice_candidates_display = data.videoIceCandidatesDisplay;
         break;
+      
+      case 'setShowCamera':
+        // Set whether to show camera or scores on display after results released
+        if (data?.showCamera !== undefined) updateData.show_camera_override = data.showCamera;
+        break;
 
       case 'resetScores':
         // Reset all scores to zero and reset timer state
@@ -191,6 +196,7 @@ export async function PATCH(
           timer_last_sync: new Date().toISOString(),
           countdown_number: null,
           transition_message: null,
+          show_camera_override: false,
           audio_enabled: false,
           audio_sdp_offer: '',
           audio_sdp_answer: '',

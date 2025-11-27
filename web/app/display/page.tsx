@@ -737,6 +737,7 @@ function DisplayPageContent() {
         setBlueScore(extractBlueScore(data));
         updateTimerDisplay(data);
         setCountdownDisplay(data.countdown_number ?? null);
+        setShowCameraOverride(data.show_camera_override ?? false);
         setIsConnected(true);
         
       } catch (err) {
@@ -763,6 +764,8 @@ function DisplayPageContent() {
           updateTimerDisplay(data);
           // Update countdown display from database
           setCountdownDisplay(data.countdown_number ?? null);
+          // Sync show camera override from host
+          setShowCameraOverride(data.show_camera_override ?? false);
         }
       } catch (err) {
         console.error('Sync error:', err);
@@ -948,14 +951,6 @@ function DisplayPageContent() {
           {/* Final Results Display (after video) - contained within video area, doesn't overlap score bar */}
           {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && !showCameraOverride && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
-              {/* Show Camera Button */}
-              <button
-                onClick={() => setShowCameraOverride(true)}
-                className="absolute top-4 right-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold text-sm z-20 transition-colors"
-              >
-                📹 Show Camera
-              </button>
-              
               <div 
                 className="text-white font-bold mb-4"
                 style={{ 
@@ -1137,15 +1132,6 @@ function DisplayPageContent() {
           {/* Normal camera/stream display when not showing results OR when camera override is active */}
           {!showWinnerVideo && (eventData?.match_state !== 'SCORES_RELEASED' || showCameraOverride) && (
             <>
-              {/* Show Scores Button when camera override is active */}
-              {showCameraOverride && eventData?.match_state === 'SCORES_RELEASED' && (
-                <button
-                  onClick={() => setShowCameraOverride(false)}
-                  className="absolute top-4 right-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold text-sm z-20 transition-colors"
-                >
-                  📊 Show Scores
-                </button>
-              )}
               {/* Priority 1: Show host's WebRTC video stream if available */}
               {hostVideoStream ? (
               <video
