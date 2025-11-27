@@ -68,7 +68,6 @@ export const MATCH_TIMING = {
   TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
   COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence
   COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds
-  COUNTDOWN_DELAY_MS: 50,   // Small delay before starting countdown audio to sync visual with audio
   TRANSITION_COUNTDOWN_START: 3, // Seconds remaining in transition to show countdown (3, 2, 1)
 };
 

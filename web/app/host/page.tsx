@@ -243,7 +243,6 @@ function HostPageContent() {
   const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [recordedMatchNumber, setRecordedMatchNumber] = useState<number | null>(null);
   const [recordedFileExtension, setRecordedFileExtension] = useState<string>('mp4');
-  const [autoRecordEnabled, setAutoRecordEnabled] = useState(true); // Auto-record by default
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
@@ -1238,9 +1237,6 @@ function HostPageContent() {
           setTimerRunning(true);
           setTimerPaused(false);
           waitingForSound.current = false;
-          
-          // Note: Auto-record is disabled because camera recording doesn't include score bar and sounds
-          // Users should use screen recording for complete match capture
           
           // Sync match state and timer
           hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
