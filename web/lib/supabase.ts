@@ -45,6 +45,9 @@ export interface EventData {
   // Pre-match countdown (5, 4, 3, 2, 1 - null when not in countdown)
   countdown_number?: number | null;
   
+  // Transition period message ("DRIVERS PICK UP CONTROLLERS" or "3", "2", "1")
+  transition_message?: string | null;
+  
   // Camera livestream URL
   livestream_url: string;
   

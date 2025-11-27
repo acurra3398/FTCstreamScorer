@@ -243,6 +243,7 @@ function HostPageContent() {
   const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [recordedMatchNumber, setRecordedMatchNumber] = useState<number | null>(null);
   const [recordedFileExtension, setRecordedFileExtension] = useState<string>('mp4');
+  const [autoRecordEnabled, setAutoRecordEnabled] = useState(true); // Auto-record by default
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
@@ -873,9 +874,18 @@ function HostPageContent() {
       const remaining = MATCH_TIMING.TRANSITION_DURATION - totalElapsed - 1;
       setSecondsRemaining(remaining);
       
-      // Sync timer to database
+      // Determine transition message based on remaining time
+      let transitionMessage: string | null = null;
+      if (remaining > 3) {
+        transitionMessage = 'DRIVERS PICK UP CONTROLLERS';
+      } else if (remaining > 0) {
+        transitionMessage = String(remaining);
+      }
+      
+      // Sync timer and transition message to database
       hostActionAPI(eventName, password, 'updateTimerState', { 
         timerSecondsRemaining: remaining,
+        transitionMessage: transitionMessage,
       }).catch(console.error);
       
       if (remaining <= 0) {
@@ -885,6 +895,7 @@ function HostPageContent() {
         hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TELEOP' }).catch(console.error);
         hostActionAPI(eventName, password, 'updateTimerState', { 
           timerSecondsRemaining: MATCH_TIMING.TELEOP_DURATION,
+          transitionMessage: null,
         }).catch(console.error);
       }
     } else if (matchPhase === 'TELEOP' || matchPhase === 'END_GAME') {
@@ -978,6 +989,11 @@ function HostPageContent() {
       setTimerPaused(false);
       waitingForSound.current = false;
       
+      // Auto-start recording if enabled and media is available
+      if (autoRecordEnabled && (cameraStream || audioStream) && !isRecording) {
+        startRecording();
+      }
+      
       // Sync match state and timer
       hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
       hostActionAPI(eventName, password, 'updateTimerState', { 
@@ -987,7 +1003,7 @@ function HostPageContent() {
         timerStartedAt: new Date().toISOString(),
       }).catch(console.error);
       
-      setActionStatus('Match started! Autonomous period.');
+      setActionStatus('Match started! Autonomous period.' + (autoRecordEnabled && (cameraStream || audioStream) ? ' Recording started.' : ''));
     });
     
     // Use setInterval for visual countdown - this runs in parallel with audio

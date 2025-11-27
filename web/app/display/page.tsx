@@ -899,6 +899,7 @@ function DisplayPageContent() {
             matchPhase={eventData?.match_state || 'NOT_STARTED'}
             timeDisplay={timerDisplay}
             countdownNumber={countdownDisplay}
+            transitionMessage={eventData?.transition_message}
           />
         </div>
       </div>
@@ -1320,6 +1321,7 @@ function DisplayPageContent() {
             matchPhase={eventData?.match_state || 'NOT_STARTED'}
             timeDisplay={timerDisplay}
             countdownNumber={countdownDisplay}
+            transitionMessage={eventData?.transition_message}
           />
         </div>
       </div>
@@ -1697,6 +1699,7 @@ function DisplayPageContent() {
             matchPhase={eventData?.match_state || 'NOT_STARTED'}
             timeDisplay={timerDisplay}
             countdownNumber={countdownDisplay}
+            transitionMessage={eventData?.transition_message}
           />
         </div>
       </div>
