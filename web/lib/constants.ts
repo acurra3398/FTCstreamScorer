@@ -135,4 +135,12 @@ export const WEBRTC_CONFIG: RTCConfiguration = {
 export const WEBRTC_POLLING = {
   MAX_ATTEMPTS: 30,        // Maximum polling attempts before timeout
   INTERVAL_MS: 1000,       // Polling interval in milliseconds
+  RECONNECT_DELAY_MS: 2000, // Delay before attempting reconnection
+  MAX_RECONNECT_ATTEMPTS: 5, // Maximum reconnection attempts
+};
+
+// Audio volume configuration
+export const AUDIO_VOLUMES = {
+  SOUND_EFFECTS: 1.0,       // Sound effects at 100% volume (results, countdown, etc.)
+  STREAM_AUDIO: 0.25,       // Stream audio at 25% volume (background for announcer audio)
 };

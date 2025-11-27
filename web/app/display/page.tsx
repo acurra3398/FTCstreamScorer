@@ -14,7 +14,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG } from '@/lib/constants';
+import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -103,6 +103,8 @@ function DisplayPageContent() {
   const lastVideoSdpOfferRef = useRef<string>('');
   const [hostVideoStream, setHostVideoStream] = useState<MediaStream | null>(null);
   const [videoConnectionStatus, setVideoConnectionStatus] = useState<string>('');
+  const videoReconnectAttemptsRef = useRef<number>(0);
+  const audioReconnectAttemptsRef = useRef<number>(0);
   
   // Track if we've already triggered the video for this score release
   const hasTriggeredVideo = useRef(false);
@@ -173,7 +175,38 @@ function DisplayPageContent() {
         pc.ontrack = (event) => {
           if (announcerAudioRef.current && event.streams[0]) {
             announcerAudioRef.current.srcObject = event.streams[0];
+            // Set stream audio volume to be lower so sound effects are more prominent
+            announcerAudioRef.current.volume = AUDIO_VOLUMES.STREAM_AUDIO;
             announcerAudioRef.current.play().catch(console.error);
+          }
+        };
+        
+        // Handle connection state changes with retry logic for audio
+        pc.onconnectionstatechange = () => {
+          console.log('Audio connection state:', pc.connectionState);
+          if (pc.connectionState === 'connected') {
+            audioReconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            // Attempt to reconnect if we haven't exceeded max attempts
+            if (audioReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
+              audioReconnectAttemptsRef.current++;
+              console.log(`Audio reconnect attempt ${audioReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
+              // Clear the last SDP offer after a delay to force re-connection on next poll
+              setTimeout(() => {
+                lastSdpOfferRef.current = '';
+              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+            }
+          }
+        };
+        
+        // Handle ICE connection state for better monitoring
+        pc.oniceconnectionstatechange = () => {
+          console.log('Audio ICE connection state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'failed') {
+            // ICE connection failed, trigger reconnect with delay
+            setTimeout(() => {
+              lastSdpOfferRef.current = '';
+            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
           }
         };
         
@@ -297,14 +330,39 @@ function DisplayPageContent() {
           }
         };
         
-        // Handle connection state changes
+        // Handle connection state changes with retry logic
         pc.onconnectionstatechange = () => {
           console.log('Video connection state:', pc.connectionState);
           if (pc.connectionState === 'connected') {
             setVideoConnectionStatus('Connected');
+            videoReconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
           } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-            setVideoConnectionStatus('Connection lost');
+            setVideoConnectionStatus('Connection lost - attempting to reconnect...');
             setHostVideoStream(null);
+            
+            // Attempt to reconnect if we haven't exceeded max attempts
+            if (videoReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
+              videoReconnectAttemptsRef.current++;
+              console.log(`Video reconnect attempt ${videoReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
+              // Clear the last SDP offer after a delay to force re-connection on next poll
+              setTimeout(() => {
+                lastVideoSdpOfferRef.current = '';
+              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+            } else {
+              setVideoConnectionStatus('Connection failed - please refresh the page');
+            }
+          }
+        };
+        
+        // Handle ICE connection state for better monitoring
+        pc.oniceconnectionstatechange = () => {
+          console.log('Video ICE connection state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'failed') {
+            // ICE connection failed, trigger reconnect with delay
+            setVideoConnectionStatus('ICE connection failed - reconnecting...');
+            setTimeout(() => {
+              lastVideoSdpOfferRef.current = '';
+            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
           }
         };
         
@@ -423,9 +481,10 @@ function DisplayPageContent() {
     setWinnerVideoSrc(videoSrc);
     setShowWinnerVideo(true);
     
-    // Play results audio
+    // Play results audio at full volume (sound effects should be louder than stream audio)
     if (audioRef.current) {
       audioRef.current.src = AUDIO_FILES.results;
+      audioRef.current.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
       audioRef.current.play().catch(console.error);
     }
   }, [eventData?.match_state, redScore, blueScore]);
@@ -625,14 +684,12 @@ function DisplayPageContent() {
     );
   }
 
-  // Camera mode - 1920x1080 aspect ratio with host camera and scores at bottom
+  // Camera mode - responsive layout with host camera/video on top and scores at bottom
   if (displayMode === 'camera') {
     return (
       <div 
-        className="flex flex-col overflow-hidden"
+        className="w-full h-screen flex flex-col overflow-hidden"
         style={{ 
-          width: '1920px',
-          height: '1080px',
           backgroundColor: COLORS.BLACK,
         }}
       >
@@ -641,17 +698,20 @@ function DisplayPageContent() {
             a similar element is rendered below. Only one mode is active at a time. */}
         <audio ref={announcerAudioRef} autoPlay style={{ display: 'none' }} />
         
-        {/* Host Camera / Video Area - takes up most of the screen */}
+        {/* Host Camera / Video Area - takes up most of the screen (top section) */}
         <div 
           className="flex-1 flex items-center justify-center relative"
-          style={{ backgroundColor: COLORS.BLACK }}
+          style={{ 
+            backgroundColor: COLORS.BLACK,
+            minHeight: 0, // Allow flex shrinking
+          }}
         >
           {/* Hidden audio element for results sound */}
           <audio ref={audioRef} preload="auto" />
           
-          {/* Winner Video Overlay */}
+          {/* Winner Video Overlay - positioned above the video area only, not the score bar */}
           {showWinnerVideo && winnerVideoSrc && (
-            <div className="absolute inset-0 z-40">
+            <div className="absolute inset-0 z-20">
               <video
                 ref={videoRef}
                 src={winnerVideoSrc}
@@ -663,41 +723,41 @@ function DisplayPageContent() {
             </div>
           )}
           
-          {/* Final Results Display (after video) */}
+          {/* Final Results Display (after video) - contained within video area, doesn't overlap score bar */}
           {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
               <div 
                 className="text-white font-bold mb-4"
                 style={{ 
-                  fontSize: '48px',
+                  fontSize: 'clamp(24px, 4vw, 48px)',
                   fontFamily: 'Arial, sans-serif',
                 }}
               >
                 🏆 FINAL RESULTS 🏆
               </div>
-              <div className="flex gap-16 mb-4">
+              <div className="flex gap-8 md:gap-16 mb-4">
                 <div className="text-center">
-                  <div className="text-red-500 font-bold mb-1" style={{ fontSize: '28px' }}>RED ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: '80px' }}>
+                  <div className="text-red-500 font-bold mb-1" style={{ fontSize: 'clamp(16px, 2.5vw, 28px)' }}>RED ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: 'clamp(40px, 7vw, 80px)' }}>
                     {calculateTotalWithPenalties(redScore, blueScore)}
                   </div>
-                  <div className="text-gray-400" style={{ fontSize: '18px' }}>
+                  <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 18px)' }}>
                     {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-blue-500 font-bold mb-1" style={{ fontSize: '28px' }}>BLUE ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: '80px' }}>
+                  <div className="text-blue-500 font-bold mb-1" style={{ fontSize: 'clamp(16px, 2.5vw, 28px)' }}>BLUE ALLIANCE</div>
+                  <div className="text-white font-bold" style={{ fontSize: 'clamp(40px, 7vw, 80px)' }}>
                     {calculateTotalWithPenalties(blueScore, redScore)}
                   </div>
-                  <div className="text-gray-400" style={{ fontSize: '18px' }}>
+                  <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 18px)' }}>
                     {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
                   </div>
                 </div>
               </div>
               <div 
                 className="text-yellow-400 font-bold mb-4 animate-pulse"
-                style={{ fontSize: '36px' }}
+                style={{ fontSize: 'clamp(20px, 3vw, 36px)' }}
               >
                 {calculateTotalWithPenalties(redScore, blueScore) > calculateTotalWithPenalties(blueScore, redScore) 
                   ? '🔴 RED WINS! 🔴' 
@@ -708,14 +768,14 @@ function DisplayPageContent() {
               </div>
               
               {/* Score Breakdown Table */}
-              <div className="flex gap-8">
+              <div className="flex gap-4 md:gap-8 flex-wrap justify-center">
                 {/* Red Score Breakdown */}
                 {(() => {
                   const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
                   return (
-                    <div className="bg-red-900/50 rounded-lg p-4 min-w-[280px]">
-                      <div className="text-red-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>RED BREAKDOWN</div>
-                      <table className="w-full text-white" style={{ fontSize: '14px' }}>
+                    <div className="bg-red-900/50 rounded-lg p-2 md:p-4 min-w-[200px] max-w-[280px]">
+                      <div className="text-red-300 font-bold text-center mb-2 md:mb-3" style={{ fontSize: 'clamp(14px, 1.5vw, 20px)' }}>RED BREAKDOWN</div>
+                      <table className="w-full text-white" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>
                         <tbody>
                           <tr className="border-b border-red-700/50">
                             <td className="py-1">🚗 Auto Leave</td>
@@ -1005,10 +1065,9 @@ function DisplayPageContent() {
           )}
         </div>
 
-        {/* Score Bar at bottom - fixed height ~182px for 1080p (16.88%) */}
+        {/* Score Bar at bottom - responsive height, always visible and not covered */}
         <div 
-          className="w-full flex-shrink-0"
-          style={{ height: '182px' }}
+          className="w-full flex-shrink-0 z-30"
         >
           <ScoreBar
             redScore={redScore}
