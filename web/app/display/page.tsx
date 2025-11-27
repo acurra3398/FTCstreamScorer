@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScoreBar from '@/components/ScoreBar';
 import { 
   DecodeScore, 
   EventData, 
+  MatchState,
   createDefaultScore, 
   extractRedScore, 
   extractBlueScore,
@@ -15,6 +16,43 @@ import {
   calculateScoreBreakdown,
 } from '@/lib/supabase';
 import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
+
+// Audio service hook for managing match sounds on display page
+function useDisplayAudioService() {
+  const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
+  
+  useEffect(() => {
+    // Preload audio files and set volume for sound effects
+    Object.entries(AUDIO_FILES).forEach(([key, path]) => {
+      const audio = new Audio(path);
+      audio.preload = 'auto';
+      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS; // Set sound effects to full volume
+      audioRefs.current[key] = audio;
+    });
+    
+    return () => {
+      // Cleanup
+      Object.values(audioRefs.current).forEach(audio => {
+        audio.pause();
+        audio.src = '';
+        audio.onended = null;
+      });
+    };
+  }, []);
+  
+  const playAudio = useCallback((key: string) => {
+    const audio = audioRefs.current[key];
+    if (audio) {
+      audio.currentTime = 0;
+      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
+      audio.play().catch(err => {
+        console.error('Audio playback failed:', err);
+      });
+    }
+  }, []);
+  
+  return { playAudio };
+}
 
 // API helper function - fetch event via server-side API route
 async function fetchEventAPI(eventName: string): Promise<EventData | null> {
@@ -108,6 +146,15 @@ function DisplayPageContent() {
   
   // Track if we've already triggered the video for this score release
   const hasTriggeredVideo = useRef(false);
+  
+  // Track previous match state for triggering sound effects
+  const previousMatchStateRef = useRef<MatchState | null>(null);
+  
+  // Override to show camera after scores released
+  const [showCameraOverride, setShowCameraOverride] = useState(false);
+  
+  // Audio service for playing sound effects
+  const { playAudio } = useDisplayAudioService();
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,6 +187,51 @@ function DisplayPageContent() {
     
     return () => clearInterval(localTimer);
   }, [eventData]);
+  
+  // Track match state changes and play appropriate sound effects
+  useEffect(() => {
+    if (!eventData) return;
+    
+    const currentState = eventData.match_state;
+    const previousState = previousMatchStateRef.current;
+    
+    // Only trigger sounds on state change
+    if (currentState !== previousState) {
+      // Play sound effects based on state transitions
+      if (currentState === 'AUTONOMOUS' && previousState === 'NOT_STARTED') {
+        // Match starting - countdown sound is played during countdown, not here
+        // The countdown sound is triggered when countdown_number is set
+      } else if (currentState === 'TRANSITION' && previousState === 'AUTONOMOUS') {
+        // End of autonomous
+        playAudio('endauto');
+        // Transition sound plays after endauto
+        setTimeout(() => playAudio('transition'), 500);
+      } else if (currentState === 'END_GAME' && previousState === 'TELEOP') {
+        // End game warning (30 seconds remaining)
+        playAudio('endgame');
+      } else if (currentState === 'FINISHED' && (previousState === 'TELEOP' || previousState === 'END_GAME')) {
+        // Match ended
+        playAudio('endmatch');
+      }
+      
+      // Reset camera override when match state changes back to NOT_STARTED
+      if (currentState === 'NOT_STARTED') {
+        setShowCameraOverride(false);
+      }
+      
+      previousMatchStateRef.current = currentState;
+    }
+  }, [eventData?.match_state, playAudio]);
+  
+  // Play countdown sound when countdown number is set
+  useEffect(() => {
+    if (countdownDisplay !== null && countdownDisplay > 0) {
+      // Only play countdown sound on the first number (e.g., 3)
+      if (countdownDisplay === MATCH_TIMING.COUNTDOWN_NUMBERS[0]) {
+        playAudio('countdown');
+      }
+    }
+  }, [countdownDisplay, playAudio]);
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
@@ -458,6 +550,7 @@ function DisplayPageContent() {
         hasTriggeredVideo.current = false;
         setShowWinnerVideo(false);
         setWinnerVideoSrc(null);
+        setShowCameraOverride(false);
       }
       return;
     }
@@ -481,13 +574,9 @@ function DisplayPageContent() {
     setWinnerVideoSrc(videoSrc);
     setShowWinnerVideo(true);
     
-    // Play results audio at full volume (sound effects should be louder than stream audio)
-    if (audioRef.current) {
-      audioRef.current.src = AUDIO_FILES.results;
-      audioRef.current.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
-      audioRef.current.play().catch(console.error);
-    }
-  }, [eventData?.match_state, redScore, blueScore]);
+    // Play results audio using the audio service (for consistent volume)
+    playAudio('results');
+  }, [eventData?.match_state, redScore, blueScore, playAudio]);
   
   // Handle video end
   const handleVideoEnd = () => {
