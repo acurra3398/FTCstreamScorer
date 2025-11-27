@@ -95,6 +95,18 @@ export const MOTIF_NAMES: Record<string, string> = {
   GPP: 'GPP (Green-Purple-Purple)',
 };
 
+// Motif emoji display - converts P to 🟣 and G to 🟢
+export function motifToEmoji(motif: string): string {
+  return motif
+    .split('')
+    .map(char => {
+      if (char === 'P' || char === 'p') return '🟣';
+      if (char === 'G' || char === 'g') return '🟢';
+      return char;
+    })
+    .join('');
+}
+
 // Base status display names
 export const BASE_STATUS_NAMES: Record<string, string> = {
   NOT_IN_BASE: 'Not in BASE',

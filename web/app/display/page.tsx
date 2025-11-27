@@ -235,6 +235,9 @@ function DisplayPageContent() {
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
+    let isCleanedUp = false;
+    let connectionTimeout: NodeJS.Timeout | null = null;
+    
     async function handleAudioStreaming(data: EventData) {
       // Check if audio is enabled and we have an SDP offer
       if (!data.audio_enabled || !data.audio_sdp_offer) {
@@ -253,6 +256,7 @@ function DisplayPageContent() {
       }
       
       lastSdpOfferRef.current = data.audio_sdp_offer;
+      console.log('New audio SDP offer received, setting up connection...');
       
       try {
         // Create peer connection for receiving audio
@@ -263,30 +267,57 @@ function DisplayPageContent() {
         const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
+        // Set a connection timeout - if we don't connect within 15 seconds, retry
+        connectionTimeout = setTimeout(() => {
+          if (pc.connectionState !== 'connected' && !isCleanedUp) {
+            console.log('Audio connection timeout, will retry on next poll');
+            lastSdpOfferRef.current = ''; // Force retry on next poll
+          }
+        }, 15000);
+        
         // Handle incoming audio track
         pc.ontrack = (event) => {
+          console.log('Received audio track from host');
           if (announcerAudioRef.current && event.streams[0]) {
             announcerAudioRef.current.srcObject = event.streams[0];
             // Set stream audio volume to be lower so sound effects are more prominent
             announcerAudioRef.current.volume = AUDIO_VOLUMES.STREAM_AUDIO;
-            announcerAudioRef.current.play().catch(console.error);
+            announcerAudioRef.current.play().catch(err => {
+              console.error('Audio play failed:', err);
+              // Retry play after a short delay (autoplay policy workaround)
+              setTimeout(() => {
+                announcerAudioRef.current?.play().catch(console.error);
+              }, 1000);
+            });
           }
         };
         
         // Handle connection state changes with retry logic for audio
         pc.onconnectionstatechange = () => {
           console.log('Audio connection state:', pc.connectionState);
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
+          
           if (pc.connectionState === 'connected') {
             audioReconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
-          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            console.log('Audio WebRTC connected successfully!');
+          } else if (pc.connectionState === 'disconnected') {
+            // Wait a bit before considering it failed - disconnected can be temporary
+            setTimeout(() => {
+              if (pc.connectionState === 'disconnected' && !isCleanedUp) {
+                console.log('Audio still disconnected, triggering reconnect');
+                lastSdpOfferRef.current = '';
+              }
+            }, 3000);
+          } else if (pc.connectionState === 'failed') {
             // Attempt to reconnect if we haven't exceeded max attempts
             if (audioReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
               audioReconnectAttemptsRef.current++;
               console.log(`Audio reconnect attempt ${audioReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
-              // Clear the last SDP offer after a delay to force re-connection on next poll
-              setTimeout(() => {
-                lastSdpOfferRef.current = '';
-              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+              // Clear the last SDP offer to force re-connection on next poll
+              lastSdpOfferRef.current = '';
             }
           }
         };
@@ -295,29 +326,54 @@ function DisplayPageContent() {
         pc.oniceconnectionstatechange = () => {
           console.log('Audio ICE connection state:', pc.iceConnectionState);
           if (pc.iceConnectionState === 'failed') {
-            // ICE connection failed, trigger reconnect with delay
-            setTimeout(() => {
-              lastSdpOfferRef.current = '';
-            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+            // Try ICE restart
+            console.log('Audio ICE failed, will retry');
+            lastSdpOfferRef.current = '';
           }
         };
         
         // Collect ICE candidates to send back to host
         const iceCandidates: RTCIceCandidate[] = [];
+        let iceSendTimeout: NodeJS.Timeout | null = null;
+        
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             iceCandidates.push(event.candidate);
-            // Send candidates to database for host to pick up
+            // Debounce sending ICE candidates - wait for more to accumulate
+            if (iceSendTimeout) clearTimeout(iceSendTimeout);
+            iceSendTimeout = setTimeout(async () => {
+              try {
+                await fetch(`/api/events/${encodeURIComponent(eventName)}/audio-answer`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
+                  }),
+                });
+              } catch (e) {
+                console.error('Error sending audio ICE candidates:', e);
+              }
+            }, 100);
+          }
+        };
+        
+        // Wait for ICE gathering to complete before sending answer
+        pc.onicegatheringstatechange = async () => {
+          console.log('Audio ICE gathering state:', pc.iceGatheringState);
+          if (pc.iceGatheringState === 'complete' && pc.localDescription) {
+            // Send final answer with all ICE candidates
             try {
               await fetch(`/api/events/${encodeURIComponent(eventName)}/audio-answer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                  answer: JSON.stringify(pc.localDescription),
                   iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
                 }),
               });
+              console.log('Audio answer sent with complete ICE candidates');
             } catch (e) {
-              console.error('Error sending audio ICE candidates:', e);
+              console.error('Error sending final audio answer:', e);
             }
           }
         };
@@ -328,9 +384,17 @@ function DisplayPageContent() {
         
         // Add ICE candidates from host
         if (data.audio_ice_candidates) {
-          const candidates = JSON.parse(data.audio_ice_candidates);
-          for (const candidate of candidates) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          try {
+            const candidates = JSON.parse(data.audio_ice_candidates);
+            for (const candidate of candidates) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (e) {
+                // Ignore errors for individual candidates - some may be duplicates
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing audio ICE candidates:', e);
           }
         }
         
@@ -338,7 +402,7 @@ function DisplayPageContent() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         
-        // Send answer back to host via API
+        // Send initial answer immediately (trickle ICE - candidates will follow)
         try {
           await fetch(`/api/events/${encodeURIComponent(eventName)}/audio-answer`, {
             method: 'POST',
@@ -347,11 +411,14 @@ function DisplayPageContent() {
               answer: JSON.stringify(answer)
             }),
           });
+          console.log('Initial audio answer sent');
         } catch (e) {
           console.error('Error sending audio answer:', e);
         }
       } catch (err) {
         console.error('Error setting up audio receiver:', err);
+        // Retry on error
+        lastSdpOfferRef.current = '';
       }
     }
     
@@ -360,6 +427,8 @@ function DisplayPageContent() {
     }
     
     return () => {
+      isCleanedUp = true;
+      if (connectionTimeout) clearTimeout(connectionTimeout);
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
@@ -369,6 +438,9 @@ function DisplayPageContent() {
   
   // Handle WebRTC video streaming from host
   useEffect(() => {
+    let isCleanedUp = false;
+    let connectionTimeout: NodeJS.Timeout | null = null;
+    
     async function handleVideoStreaming(data: EventData) {
       // Check if video is enabled and we have an SDP offer
       if (!data.video_enabled || !data.video_sdp_offer) {
@@ -390,6 +462,7 @@ function DisplayPageContent() {
       
       lastVideoSdpOfferRef.current = data.video_sdp_offer;
       setVideoConnectionStatus('Connecting to host camera...');
+      console.log('New video SDP offer received, setting up connection...');
       
       try {
         // Parse the offer first to validate it
@@ -410,6 +483,15 @@ function DisplayPageContent() {
         const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         videoPeerConnectionRef.current = pc;
         
+        // Set a connection timeout - if we don't connect within 15 seconds, retry
+        connectionTimeout = setTimeout(() => {
+          if (pc.connectionState !== 'connected' && !isCleanedUp) {
+            console.log('Video connection timeout, will retry on next poll');
+            setVideoConnectionStatus('Connection timeout - retrying...');
+            lastVideoSdpOfferRef.current = ''; // Force retry on next poll
+          }
+        }, 15000);
+        
         // Handle incoming video track
         pc.ontrack = (event) => {
           console.log('Received video track from host');
@@ -418,28 +500,48 @@ function DisplayPageContent() {
           
           if (hostVideoRef.current && event.streams[0]) {
             hostVideoRef.current.srcObject = event.streams[0];
-            hostVideoRef.current.play().catch(console.error);
+            hostVideoRef.current.play().catch(err => {
+              console.error('Video play failed:', err);
+              // Retry play after a short delay (autoplay policy workaround)
+              setTimeout(() => {
+                hostVideoRef.current?.play().catch(console.error);
+              }, 1000);
+            });
           }
         };
         
         // Handle connection state changes with retry logic
         pc.onconnectionstatechange = () => {
           console.log('Video connection state:', pc.connectionState);
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
+          
           if (pc.connectionState === 'connected') {
             setVideoConnectionStatus('Connected');
             videoReconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
-          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-            setVideoConnectionStatus('Connection lost - attempting to reconnect...');
+            console.log('Video WebRTC connected successfully!');
+          } else if (pc.connectionState === 'disconnected') {
+            setVideoConnectionStatus('Connection interrupted - waiting...');
+            // Wait a bit before considering it failed - disconnected can be temporary
+            setTimeout(() => {
+              if (pc.connectionState === 'disconnected' && !isCleanedUp) {
+                console.log('Video still disconnected, triggering reconnect');
+                setVideoConnectionStatus('Reconnecting...');
+                lastVideoSdpOfferRef.current = '';
+              }
+            }, 3000);
+          } else if (pc.connectionState === 'failed') {
             setHostVideoStream(null);
             
             // Attempt to reconnect if we haven't exceeded max attempts
             if (videoReconnectAttemptsRef.current < WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS) {
               videoReconnectAttemptsRef.current++;
               console.log(`Video reconnect attempt ${videoReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
-              // Clear the last SDP offer after a delay to force re-connection on next poll
-              setTimeout(() => {
-                lastVideoSdpOfferRef.current = '';
-              }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+              setVideoConnectionStatus(`Reconnecting (${videoReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS})...`);
+              // Clear the last SDP offer to force re-connection on next poll
+              lastVideoSdpOfferRef.current = '';
             } else {
               setVideoConnectionStatus('Connection failed - please refresh the page');
             }
@@ -450,30 +552,55 @@ function DisplayPageContent() {
         pc.oniceconnectionstatechange = () => {
           console.log('Video ICE connection state:', pc.iceConnectionState);
           if (pc.iceConnectionState === 'failed') {
-            // ICE connection failed, trigger reconnect with delay
+            // Try ICE restart
+            console.log('Video ICE failed, will retry');
             setVideoConnectionStatus('ICE connection failed - reconnecting...');
-            setTimeout(() => {
-              lastVideoSdpOfferRef.current = '';
-            }, WEBRTC_POLLING.RECONNECT_DELAY_MS);
+            lastVideoSdpOfferRef.current = '';
           }
         };
         
         // Collect ICE candidates to send back to host
         const iceCandidates: RTCIceCandidate[] = [];
+        let iceSendTimeout: NodeJS.Timeout | null = null;
+        
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             iceCandidates.push(event.candidate);
-            // Send candidates to database for host to pick up
+            // Debounce sending ICE candidates - wait for more to accumulate
+            if (iceSendTimeout) clearTimeout(iceSendTimeout);
+            iceSendTimeout = setTimeout(async () => {
+              try {
+                await fetch(`/api/events/${encodeURIComponent(eventName)}/video-answer`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
+                  }),
+                });
+              } catch (e) {
+                console.error('Error sending video ICE candidates:', e);
+              }
+            }, 100);
+          }
+        };
+        
+        // Wait for ICE gathering to complete before sending final answer
+        pc.onicegatheringstatechange = async () => {
+          console.log('Video ICE gathering state:', pc.iceGatheringState);
+          if (pc.iceGatheringState === 'complete' && pc.localDescription) {
+            // Send final answer with all ICE candidates
             try {
               await fetch(`/api/events/${encodeURIComponent(eventName)}/video-answer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                  answer: JSON.stringify(pc.localDescription),
                   iceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON()))
                 }),
               });
+              console.log('Video answer sent with complete ICE candidates');
             } catch (e) {
-              console.error('Error sending ICE candidates:', e);
+              console.error('Error sending final video answer:', e);
             }
           }
         };
@@ -489,7 +616,7 @@ function DisplayPageContent() {
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(candidate));
               } catch (e) {
-                console.error('Error adding host ICE candidate:', e);
+                // Ignore errors for individual candidates - some may be duplicates
               }
             }
           } catch (parseErr) {
@@ -501,7 +628,7 @@ function DisplayPageContent() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         
-        // Send answer back to host via API
+        // Send initial answer immediately (trickle ICE - candidates will follow)
         try {
           await fetch(`/api/events/${encodeURIComponent(eventName)}/video-answer`, {
             method: 'POST',
@@ -511,6 +638,7 @@ function DisplayPageContent() {
             }),
           });
           setVideoConnectionStatus('Answer sent - waiting for connection...');
+          console.log('Initial video answer sent');
         } catch (e) {
           console.error('Error sending video answer:', e);
           setVideoConnectionStatus('Error connecting');
@@ -518,6 +646,8 @@ function DisplayPageContent() {
       } catch (err) {
         console.error('Error setting up video receiver:', err);
         setVideoConnectionStatus('Error: ' + (err instanceof Error ? err.message : 'Unknown'));
+        // Retry on error
+        lastVideoSdpOfferRef.current = '';
       }
     }
     
@@ -526,6 +656,8 @@ function DisplayPageContent() {
     }
     
     return () => {
+      isCleanedUp = true;
+      if (connectionTimeout) clearTimeout(connectionTimeout);
       if (videoPeerConnectionRef.current) {
         videoPeerConnectionRef.current.close();
         videoPeerConnectionRef.current = null;
@@ -813,8 +945,16 @@ function DisplayPageContent() {
           )}
           
           {/* Final Results Display (after video) - contained within video area, doesn't overlap score bar */}
-          {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
+          {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && !showCameraOverride && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
+              {/* Show Camera Button */}
+              <button
+                onClick={() => setShowCameraOverride(true)}
+                className="absolute top-4 right-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold text-sm z-20 transition-colors"
+              >
+                📹 Show Camera
+              </button>
+              
               <div 
                 className="text-white font-bold mb-4"
                 style={{ 
@@ -993,10 +1133,20 @@ function DisplayPageContent() {
             </div>
           )}
           
-          {/* Normal camera/stream display when not showing results */}
-          {!showWinnerVideo && eventData?.match_state !== 'SCORES_RELEASED' && (
-            // Priority 1: Show host's WebRTC video stream if available
-            hostVideoStream ? (
+          {/* Normal camera/stream display when not showing results OR when camera override is active */}
+          {!showWinnerVideo && (eventData?.match_state !== 'SCORES_RELEASED' || showCameraOverride) && (
+            <>
+              {/* Show Scores Button when camera override is active */}
+              {showCameraOverride && eventData?.match_state === 'SCORES_RELEASED' && (
+                <button
+                  onClick={() => setShowCameraOverride(false)}
+                  className="absolute top-4 right-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold text-sm z-20 transition-colors"
+                >
+                  📊 Show Scores
+                </button>
+              )}
+              {/* Priority 1: Show host's WebRTC video stream if available */}
+              {hostVideoStream ? (
               <video
                 ref={hostVideoRef}
                 autoPlay
@@ -1150,7 +1300,8 @@ function DisplayPageContent() {
                   </>
                 )}
               </div>
-            )
+            )}
+            </>
           )}
         </div>
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { DecodeScore, calculateTotalWithPenalties, calculateBasePoints } from '@/lib/supabase';
-import { EMOJI, COLORS, LAYOUT } from '@/lib/constants';
+import { EMOJI, COLORS, LAYOUT, motifToEmoji } from '@/lib/constants';
 
 interface ScoreBarProps {
   redScore: DecodeScore;
@@ -15,6 +15,7 @@ interface ScoreBarProps {
   matchPhase: string;
   timeDisplay: string;
   countdownNumber?: number | null;
+  transitionMessage?: string | null; // Message to show during transition (e.g., "Drivers pick up your controllers" or "3", "2", "1")
 }
 
 /**
@@ -37,6 +38,7 @@ export default function ScoreBar({
   matchPhase,
   timeDisplay,
   countdownNumber,
+  transitionMessage,
 }: ScoreBarProps) {
   const redTotal = calculateTotalWithPenalties(redScore, blueScore);
   const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
@@ -157,6 +159,24 @@ export default function ScoreBar({
           </div>
         )}
         
+        {/* Transition message overlay */}
+        {transitionMessage && matchPhase === 'TRANSITION' && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center z-10"
+            style={{ backgroundColor: 'rgba(255, 255, 0, 0.95)' }}
+          >
+            <span 
+              className="font-bold text-black text-center animate-pulse px-2"
+              style={{ 
+                fontSize: transitionMessage.length <= 1 ? 'clamp(48px, 8vh, 120px)' : 'clamp(10px, 1.5vh, 16px)',
+                fontFamily: 'Arial, sans-serif',
+              }}
+            >
+              {transitionMessage}
+            </span>
+          </div>
+        )}
+        
         {/* Timer - 60% of overlay height */}
         <span 
           className="font-bold text-black leading-none"
@@ -177,18 +197,18 @@ export default function ScoreBar({
             fontFamily: 'Arial, sans-serif',
           }}
         >
-          {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase}
+          {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase.replace(/_/g, ' ')}
         </span>
         
-        {/* Motif */}
+        {/* Motif with emoji */}
         <span 
-          className="font-bold text-gray-500 leading-tight"
+          className="font-bold leading-tight"
           style={{ 
-            fontSize: 'clamp(10px, 1.4vh, 18px)',
+            fontSize: 'clamp(14px, 2vh, 24px)',
             fontFamily: 'Arial, sans-serif',
           }}
         >
-          {motif}
+          {motifToEmoji(motif)}
         </span>
       </div>
 
