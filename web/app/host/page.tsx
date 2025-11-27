@@ -601,7 +601,7 @@ function HostPageContent() {
                       try {
                         await pc.addIceCandidate(new RTCIceCandidate(candidate));
                       } catch (e) {
-                        // Ignore duplicate candidate errors
+                        // Ignore InvalidStateError for duplicate or already-added ICE candidates
                       }
                     }
                   } catch (e) {
@@ -621,11 +621,11 @@ function HostPageContent() {
                   try {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
                   } catch (e) {
-                    // Ignore duplicate candidate errors
+                    // Ignore InvalidStateError for duplicate or already-added ICE candidates
                   }
                 }
               } catch (e) {
-                // Ignore parsing errors
+                // Ignore JSON parsing errors for malformed ICE candidate data
               }
             }
           } catch (err) {
@@ -788,7 +788,7 @@ function HostPageContent() {
                       try {
                         await pc.addIceCandidate(new RTCIceCandidate(candidate));
                       } catch (e) {
-                        // Ignore duplicate candidate errors
+                        // Ignore InvalidStateError for duplicate or already-added ICE candidates
                       }
                     }
                   } catch (e) {
@@ -808,11 +808,11 @@ function HostPageContent() {
                   try {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
                   } catch (e) {
-                    // Ignore duplicate candidate errors
+                    // Ignore InvalidStateError for duplicate or already-added ICE candidates
                   }
                 }
               } catch (e) {
-                // Ignore parsing errors
+                // Ignore JSON parsing errors for malformed ICE candidate data
               }
             }
           } catch (err) {
