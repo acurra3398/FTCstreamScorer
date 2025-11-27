@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase-server';
 
-// Admin password - in a real production environment, this should be stored securely
-// For now, we use an environment variable with a fallback
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ftcadmin2024';
+// Admin password from environment variable - required for admin access
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // POST /api/admin/events - Get all events (admin only)
 export async function POST(request: NextRequest) {
   try {
+    // Check if admin password is configured
+    if (!ADMIN_PASSWORD) {
+      return NextResponse.json(
+        { success: false, message: 'Admin access is not configured. Set ADMIN_PASSWORD environment variable.' },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { adminPassword } = body;
 

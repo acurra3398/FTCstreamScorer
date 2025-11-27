@@ -397,6 +397,111 @@ function HostPageContent() {
     }
   }, [cameraStream, audioStream, matchHistory.length]);
   
+  // Start screen recording (captures display with score bar and sound effects)
+  const startScreenRecording = useCallback(async () => {
+    try {
+      setRecordingStatus('Requesting screen capture permission...');
+      
+      // Request screen capture with system audio
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: 'browser',
+        },
+        audio: true, // Capture system audio (including sound effects)
+      });
+      
+      // Also capture microphone if available
+      let micStream: MediaStream | null = null;
+      if (selectedMicrophone) {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: selectedMicrophone } }
+          });
+        } catch {
+          console.log('Could not capture microphone for screen recording');
+        }
+      }
+      
+      // Combine streams
+      const tracks: MediaStreamTrack[] = [...displayStream.getTracks()];
+      if (micStream) {
+        micStream.getAudioTracks().forEach(track => tracks.push(track));
+      }
+      
+      const combinedStream = new MediaStream(tracks);
+      
+      // Try to use WebM with VP9/Opus codecs for best quality
+      let mimeType = 'video/webm;codecs=vp9,opus';
+      let fileExtension = 'webm';
+      
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 4000000, // Higher bitrate for screen recording
+      });
+      
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        // Stop all display tracks
+        displayStream.getTracks().forEach(track => track.stop());
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop());
+        }
+        
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setRecordedBlobUrl(url);
+        setRecordedMatchNumber(matchHistory.length + 1);
+        setRecordedFileExtension(fileExtension);
+        setRecordingStatus(`Screen recording saved! Click download to save.`);
+        setIsRecording(false);
+      };
+      
+      // Handle when user stops sharing
+      displayStream.getVideoTracks()[0].onended = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      };
+      
+      mediaRecorder.onerror = (event) => {
+        console.error('Screen recording error:', event);
+        setRecordingStatus('Screen recording error occurred');
+        setIsRecording(false);
+        displayStream.getTracks().forEach(track => track.stop());
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop());
+        }
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000);
+      setIsRecording(true);
+      setRecordingStatus(`🔴 Screen recording (includes score bar & sounds)...`);
+      
+    } catch (err) {
+      console.error('Error starting screen recording:', err);
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setRecordingStatus('Screen capture permission denied');
+      } else {
+        setRecordingStatus('Failed to start screen recording: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    }
+  }, [matchHistory.length, selectedMicrophone]);
+  
   // Stop recording
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -1688,7 +1793,7 @@ function HostPageContent() {
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="text-lg font-bold mb-3">🎬 Match Recording</h3>
           <p className="text-sm text-gray-600 mb-3">
-            Record video and audio manually. Start and stop recording at any time. Downloads are saved as {recordedFileExtension.toUpperCase()} format.
+            Record matches with video and audio. Choose between camera recording or screen capture (includes score bar and sound effects).
           </p>
           <div className="space-y-3">
             {/* Recording status */}
@@ -1707,13 +1812,23 @@ function HostPageContent() {
             
             {/* Recording controls */}
             <div className="flex gap-2 items-center flex-wrap">
-              {!isRecording && !recordedBlobUrl && (cameraStream || audioStream) && (
-                <button
-                  onClick={startRecording}
-                  className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
-                >
-                  🔴 Start Recording
-                </button>
+              {!isRecording && !recordedBlobUrl && (
+                <>
+                  {(cameraStream || audioStream) && (
+                    <button
+                      onClick={startRecording}
+                      className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700"
+                    >
+                      🔴 Record Camera
+                    </button>
+                  )}
+                  <button
+                    onClick={startScreenRecording}
+                    className="px-4 py-2 bg-purple-600 text-white rounded font-bold hover:bg-purple-700"
+                  >
+                    🖥️ Record Screen (with score bar & sounds)
+                  </button>
+                </>
               )}
               
               {isRecording && (
@@ -1741,12 +1856,6 @@ function HostPageContent() {
                   </button>
                 </>
               )}
-              
-              {!isRecording && !recordedBlobUrl && !cameraStream && !audioStream && (
-                <div className="text-sm text-yellow-600">
-                  ⚠️ Enable camera or microphone to record matches
-                </div>
-              )}
             </div>
             
             {/* Preview recorded video */}
@@ -1762,7 +1871,8 @@ function HostPageContent() {
             )}
             
             <p className="text-xs text-gray-500">
-              <strong>Note:</strong> Recordings are saved locally in your browser. Click the download button to save them to your device.
+              <strong>💡 Tip:</strong> Use &quot;Record Screen&quot; to capture the display page with the score bar and sound effects. 
+              Open the display page in another browser tab/window, then select that tab when prompted.
             </p>
           </div>
         </div>
