@@ -66,8 +66,9 @@ export const MATCH_TIMING = {
   TELEOP_DURATION: 120,     // 2 minutes teleop
   ENDGAME_START: 90,        // End game starts at 90 seconds into teleop (30 sec remaining)
   TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
-  COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence (matches countdown.wav timing)
-  COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds (matches countdown.wav timing)
+  COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence
+  COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds
+  COUNTDOWN_DELAY_MS: 50,   // Small delay before starting countdown audio to sync visual with audio
   TRANSITION_COUNTDOWN_START: 3, // Seconds remaining in transition to show countdown (3, 2, 1)
 };
 
