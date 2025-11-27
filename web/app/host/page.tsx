@@ -875,8 +875,9 @@ function HostPageContent() {
       setSecondsRemaining(remaining);
       
       // Determine transition message based on remaining time
+      // Show "DRIVERS PICK UP CONTROLLERS" until countdown starts, then show 3, 2, 1
       let transitionMessage: string | null = null;
-      if (remaining > 3) {
+      if (remaining > MATCH_TIMING.TRANSITION_COUNTDOWN_START) {
         transitionMessage = 'DRIVERS PICK UP CONTROLLERS';
       } else if (remaining > 0) {
         transitionMessage = String(remaining);

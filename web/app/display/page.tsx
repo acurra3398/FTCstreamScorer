@@ -267,13 +267,13 @@ function DisplayPageContent() {
         const pc = new RTCPeerConnection(WEBRTC_CONFIG);
         peerConnectionRef.current = pc;
         
-        // Set a connection timeout - if we don't connect within 15 seconds, retry
+        // Set a connection timeout - if we don't connect within timeout, retry
         connectionTimeout = setTimeout(() => {
           if (pc.connectionState !== 'connected' && !isCleanedUp) {
             console.log('Audio connection timeout, will retry on next poll');
             lastSdpOfferRef.current = ''; // Force retry on next poll
           }
-        }, 15000);
+        }, WEBRTC_POLLING.CONNECTION_TIMEOUT_MS);
         
         // Handle incoming audio track
         pc.ontrack = (event) => {
@@ -353,7 +353,7 @@ function DisplayPageContent() {
               } catch (e) {
                 console.error('Error sending audio ICE candidates:', e);
               }
-            }, 100);
+            }, WEBRTC_POLLING.ICE_DEBOUNCE_MS);
           }
         };
         
@@ -490,7 +490,7 @@ function DisplayPageContent() {
             setVideoConnectionStatus('Connection timeout - retrying...');
             lastVideoSdpOfferRef.current = ''; // Force retry on next poll
           }
-        }, 15000);
+        }, WEBRTC_POLLING.CONNECTION_TIMEOUT_MS);
         
         // Handle incoming video track
         pc.ontrack = (event) => {
@@ -580,7 +580,7 @@ function DisplayPageContent() {
               } catch (e) {
                 console.error('Error sending video ICE candidates:', e);
               }
-            }, 100);
+            }, WEBRTC_POLLING.ICE_DEBOUNCE_MS);
           }
         };
         
