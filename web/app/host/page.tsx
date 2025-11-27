@@ -487,7 +487,7 @@ function HostPageContent() {
         });
         setAudioStream(stream);
         setAudioEnabled(true);
-        setAudioStatus('Audio streaming active - Microphone is live!');
+        setAudioStatus('🎙️ Initializing audio connection...');
         
         // Create WebRTC peer connection for audio
         const pc = new RTCPeerConnection(WEBRTC_CONFIG);
@@ -498,24 +498,59 @@ function HostPageContent() {
           pc.addTrack(track, stream);
         });
         
-        // Handle ICE candidates
+        // Handle ICE candidates with debouncing for reliability
         const iceCandidates: RTCIceCandidate[] = [];
+        let iceSendTimeout: NodeJS.Timeout | null = null;
+        
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             iceCandidates.push(event.candidate);
-            // Update candidates in database (accumulated list)
-            await hostActionAPI(eventName, password, 'setAudioState', { 
+            // Debounce sending ICE candidates
+            if (iceSendTimeout) clearTimeout(iceSendTimeout);
+            iceSendTimeout = setTimeout(async () => {
+              try {
+                await hostActionAPI(eventName, password, 'setAudioState', { 
+                  audioIceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON())),
+                });
+              } catch (e) {
+                console.error('Error sending audio ICE candidates:', e);
+              }
+            }, WEBRTC_POLLING.ICE_DEBOUNCE_MS);
+          }
+        };
+        
+        // Monitor ICE gathering state for reliability
+        pc.onicegatheringstatechange = () => {
+          console.log('Audio ICE gathering state:', pc.iceGatheringState);
+          if (pc.iceGatheringState === 'complete') {
+            // Send final ICE candidates when gathering is complete
+            hostActionAPI(eventName, password, 'setAudioState', { 
               audioIceCandidates: JSON.stringify(iceCandidates.map(c => c.toJSON())),
-            });
+            }).catch(console.error);
+          }
+        };
+        
+        // Handle ICE connection state for better monitoring
+        pc.oniceconnectionstatechange = () => {
+          console.log('Audio ICE connection state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'connected') {
+            setAudioStatus('🎙️ Audio streaming - LIVE');
+          } else if (pc.iceConnectionState === 'disconnected') {
+            setAudioStatus('⚠️ Audio connection interrupted - waiting...');
+          } else if (pc.iceConnectionState === 'failed') {
+            setAudioStatus('❌ Audio connection failed - try restarting');
           }
         };
         
         // Handle connection state changes
         pc.onconnectionstatechange = () => {
+          console.log('Audio connection state:', pc.connectionState);
           if (pc.connectionState === 'connected') {
             setAudioStatus('🎙️ Audio streaming - Connected to display!');
-          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-            setAudioStatus('⚠️ Audio connection lost');
+          } else if (pc.connectionState === 'disconnected') {
+            setAudioStatus('⚠️ Audio connection interrupted');
+          } else if (pc.connectionState === 'failed') {
+            setAudioStatus('❌ Audio connection failed');
           }
         };
         
@@ -535,13 +570,16 @@ function HostPageContent() {
         
         // Poll for display's answer with timeout
         let pollAttempts = 0;
+        let connectionEstablished = false;
         const pollForAnswer = setInterval(async () => {
           pollAttempts++;
           
           // Timeout after max attempts
           if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
             clearInterval(pollForAnswer);
-            setAudioStatus('⏱️ Connection timeout - Display may not be connected');
+            if (!connectionEstablished) {
+              setAudioStatus('⏱️ Connection timeout - Display may not be connected');
+            }
             return;
           }
           
@@ -552,7 +590,8 @@ function HostPageContent() {
               try {
                 const answer = JSON.parse(data.audio_sdp_answer);
                 await pc.setRemoteDescription(new RTCSessionDescription(answer));
-                setAudioStatus('🎙️ Audio streaming - LIVE');
+                connectionEstablished = true;
+                setAudioStatus('🎙️ Audio streaming - Establishing...');
                 
                 // Add display's ICE candidates
                 if (data.audio_ice_candidates_display) {
@@ -562,7 +601,7 @@ function HostPageContent() {
                       try {
                         await pc.addIceCandidate(new RTCIceCandidate(candidate));
                       } catch (e) {
-                        console.error('Error adding display audio ICE candidate:', e);
+                        // Ignore duplicate candidate errors
                       }
                     }
                   } catch (e) {
@@ -574,6 +613,20 @@ function HostPageContent() {
               }
               
               clearInterval(pollForAnswer);
+            } else if (connectionEstablished && data?.audio_ice_candidates_display) {
+              // Keep adding new ICE candidates even after connection established
+              try {
+                const displayCandidates = JSON.parse(data.audio_ice_candidates_display);
+                for (const candidate of displayCandidates) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                  } catch (e) {
+                    // Ignore duplicate candidate errors
+                  }
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
             }
           } catch (err) {
             console.error('Error polling for audio answer:', err);
@@ -587,6 +640,7 @@ function HostPageContent() {
         const originalClose = pc.close.bind(pc);
         pc.close = () => {
           clearInterval(currentPollRef.interval);
+          if (iceSendTimeout) clearTimeout(iceSendTimeout);
           originalClose();
         };
         
@@ -619,7 +673,7 @@ function HostPageContent() {
     } else if (cameraStream) {
       // Start video streaming with existing camera stream
       try {
-        setCameraStatus('Starting video stream...');
+        setCameraStatus('📹 Initializing video connection...');
         
         // Create WebRTC peer connection for video
         const pc = new RTCPeerConnection(WEBRTC_CONFIG);
@@ -630,24 +684,59 @@ function HostPageContent() {
           pc.addTrack(track, cameraStream);
         });
         
-        // Handle ICE candidates - send to database for display to pick up
+        // Handle ICE candidates with debouncing for reliability
         const iceCandidates: RTCIceCandidate[] = [];
+        let iceSendTimeout: NodeJS.Timeout | null = null;
+        
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
             iceCandidates.push(event.candidate);
-            // Update candidates in database
-            await hostActionAPI(eventName, password, 'setVideoState', { 
+            // Debounce sending ICE candidates
+            if (iceSendTimeout) clearTimeout(iceSendTimeout);
+            iceSendTimeout = setTimeout(async () => {
+              try {
+                await hostActionAPI(eventName, password, 'setVideoState', { 
+                  videoIceCandidatesHost: JSON.stringify(iceCandidates.map(c => c.toJSON())),
+                });
+              } catch (e) {
+                console.error('Error sending video ICE candidates:', e);
+              }
+            }, WEBRTC_POLLING.ICE_DEBOUNCE_MS);
+          }
+        };
+        
+        // Monitor ICE gathering state for reliability
+        pc.onicegatheringstatechange = () => {
+          console.log('Video ICE gathering state:', pc.iceGatheringState);
+          if (pc.iceGatheringState === 'complete') {
+            // Send final ICE candidates when gathering is complete
+            hostActionAPI(eventName, password, 'setVideoState', { 
               videoIceCandidatesHost: JSON.stringify(iceCandidates.map(c => c.toJSON())),
-            });
+            }).catch(console.error);
+          }
+        };
+        
+        // Handle ICE connection state for better monitoring
+        pc.oniceconnectionstatechange = () => {
+          console.log('Video ICE connection state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'connected') {
+            setCameraStatus('📹 Video streaming - LIVE');
+          } else if (pc.iceConnectionState === 'disconnected') {
+            setCameraStatus('⚠️ Video connection interrupted - waiting...');
+          } else if (pc.iceConnectionState === 'failed') {
+            setCameraStatus('❌ Video connection failed - try restarting');
           }
         };
         
         // Handle connection state changes
         pc.onconnectionstatechange = () => {
+          console.log('Video connection state:', pc.connectionState);
           if (pc.connectionState === 'connected') {
             setCameraStatus('📹 Video streaming - Connected to display!');
-          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-            setCameraStatus('⚠️ Video connection lost');
+          } else if (pc.connectionState === 'disconnected') {
+            setCameraStatus('⚠️ Video connection interrupted');
+          } else if (pc.connectionState === 'failed') {
+            setCameraStatus('❌ Video connection failed');
           }
         };
         
@@ -668,13 +757,16 @@ function HostPageContent() {
         
         // Poll for display's answer with timeout
         let pollAttempts = 0;
+        let connectionEstablished = false;
         const pollForAnswer = setInterval(async () => {
           pollAttempts++;
           
           // Timeout after max attempts
           if (pollAttempts > WEBRTC_POLLING.MAX_ATTEMPTS) {
             clearInterval(pollForAnswer);
-            setCameraStatus('⏱️ Connection timeout - Display may not be connected');
+            if (!connectionEstablished) {
+              setCameraStatus('⏱️ Connection timeout - Display may not be connected');
+            }
             return;
           }
           
@@ -685,7 +777,8 @@ function HostPageContent() {
               try {
                 const answer = JSON.parse(data.video_sdp_answer);
                 await pc.setRemoteDescription(new RTCSessionDescription(answer));
-                setCameraStatus('📹 Video streaming - LIVE');
+                connectionEstablished = true;
+                setCameraStatus('📹 Video streaming - Establishing...');
                 
                 // Add display's ICE candidates
                 if (data.video_ice_candidates_display) {
@@ -695,7 +788,7 @@ function HostPageContent() {
                       try {
                         await pc.addIceCandidate(new RTCIceCandidate(candidate));
                       } catch (e) {
-                        console.error('Error adding display ICE candidate:', e);
+                        // Ignore duplicate candidate errors
                       }
                     }
                   } catch (e) {
@@ -707,6 +800,20 @@ function HostPageContent() {
               }
               
               clearInterval(pollForAnswer);
+            } else if (connectionEstablished && data?.video_ice_candidates_display) {
+              // Keep adding new ICE candidates even after connection established
+              try {
+                const displayCandidates = JSON.parse(data.video_ice_candidates_display);
+                for (const candidate of displayCandidates) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                  } catch (e) {
+                    // Ignore duplicate candidate errors
+                  }
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
             }
           } catch (err) {
             console.error('Error polling for video answer:', err);
@@ -720,6 +827,7 @@ function HostPageContent() {
         const originalClose = pc.close.bind(pc);
         pc.close = () => {
           clearInterval(currentPollRef.interval);
+          if (iceSendTimeout) clearTimeout(iceSendTimeout);
           originalClose();
         };
         
