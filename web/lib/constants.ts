@@ -11,44 +11,79 @@ export const EMOJI = {
   TEAM: '👥',
 };
 
-// Colors matching LIVE FTC Stream Scorer UI (sampled from reference image)
+// Colors matching official FTC Live Event Management System UI (measured from actual image)
 export const COLORS = {
-  // Primary panel colors (sampled from live UI)
-  RED_PRIMARY: '#790213',      // Live UI red panel
-  RED_DARK: '#5a0110',
-  BLUE_PRIMARY: '#0A6CAF',     // Live UI blue panel
-  BLUE_DARK: '#085a94',
+  // Primary panel colors (measured from actual FTC UI - 1326×131 reference image)
+  RED_PRIMARY: '#830F12',      // RGB(131,15,18) - Official FTC red
+  RED_DARK: '#6a0c0f',
+  BLUE_PRIMARY: '#004172',     // RGB(0,65,114) - Official FTC blue
+  BLUE_DARK: '#003560',
   
   // Neutral colors
   WHITE: '#FFFFFF',
+  OFF_WHITE: '#F5F5F5',        // Pale background for subtle contrast
   BLACK: '#000000',
+  TEXT_BLACK: '#121212',       // Used for scores and timer digits
   PLACEHOLDER_GRAY: '#8A8A8C', // Placeholder gray from reference
+  
+  // Status indicator colors (measured from actual UI)
+  STATUS_GREEN: '#53B250',     // Green status circles
+  STATUS_PURPLE: '#7D4CB2',    // Purple status circles
   
   // Accent colors
   YELLOW: 'rgb(255, 235, 59)',
   GOLD: 'gold',
 };
 
-// Layout constants based on reference image (1382×776 baseline)
+// Layout constants based on official FTC reference image (1326×131 baseline)
 export const LAYOUT = {
-  // Baseline canvas dimensions
-  BASELINE_WIDTH: 1382,
-  BASELINE_HEIGHT: 776,
+  // Baseline canvas dimensions (measured from actual FTC UI)
+  BASELINE_WIDTH: 1326,
+  BASELINE_HEIGHT: 131,
   
-  // Overlay (scorebar) dimensions as percentage of container
-  OVERLAY_HEIGHT_PERCENT: 16.88,  // 131px / 776px = 16.88%
+  // Three-column proportions (measured from actual image)
+  LEFT_PANEL_WIDTH_PERCENT: 44.6,   // Red column: 591px / 1326px ≈ 44.6%
+  CENTER_PANEL_WIDTH_PERCENT: 10.6, // Timer column: 140px / 1326px ≈ 10.6%
+  RIGHT_PANEL_WIDTH_PERCENT: 44.7,  // Blue column: 592px / 1326px ≈ 44.7%
+  
+  // Team number box dimensions (measured)
+  TEAM_BOX_WIDTH: 102,   // 102px width
+  TEAM_BOX_HEIGHT: 53,   // 53px height each (stacked pair)
+  
+  // Large score circle dimensions
+  SCORE_CIRCLE_DIAMETER: 85, // ~80-90px diameter
+  
+  // Timer digit dimensions
+  TIMER_DIGIT_HEIGHT: 45, // 45px height for timer digits
+  
+  // Small status circle dimensions
+  STATUS_CIRCLE_DIAMETER: 18, // 18px diameter
+  STATUS_CIRCLE_SPACING: 24,  // 24px center-to-center
+  
+  // Robot icon dimensions
+  ROBOT_ICON_WIDTH: 30,
+  ROBOT_ICON_HEIGHT: 45,
+  
+  // Corner radius for boxes
+  BOX_CORNER_RADIUS: 4,
+  
+  // Stroke widths
+  BOX_STROKE_WIDTH: 2,   // 2-3px for white boxes
+  THIN_STROKE_WIDTH: 1,  // 1-2px for small widgets
+  
+  // Internal padding
+  EDGE_PADDING: 15,      // 12-18px from outer edge
+  
+  // Legacy values for backward compatibility
+  OVERLAY_HEIGHT_PERCENT: 16.88,    // 131px / 776px = 16.88%
   VIDEO_AREA_HEIGHT_PERCENT: 83.12, // 645px / 776px = 83.12%
+  SIDE_PANEL_WIDTH_PERCENT: 44.6,   // Updated to match measured value
+  CENTER_PANEL_WIDTH_PERCENT_LEGACY: 10.6,
   
-  // Panel widths as percentage of container width
-  SIDE_PANEL_WIDTH_PERCENT: 33.33, // ~460px / 1382px ≈ 33%
-  CENTER_PANEL_WIDTH_PERCENT: 14.5, // ~200px / 1382px ≈ 14.5%
-  
-  // Font sizes as percentage of overlay height
-  TIMER_FONT_SIZE_PERCENT: 60,    // 78px / 131px ≈ 60%
-  SMALL_TEXT_PERCENT: 35,         // 46px / 131px ≈ 35%
-  ICON_TEXT_PERCENT: 25,          // smaller text for icons
-  
-  // Padding as percentage of overlay height
+  // Font sizes
+  TIMER_FONT_SIZE_PERCENT: 60,
+  SMALL_TEXT_PERCENT: 35,
+  ICON_TEXT_PERCENT: 25,
   VERTICAL_PADDING_PERCENT: 6,
   HORIZONTAL_PADDING_PERCENT: 6,
 };

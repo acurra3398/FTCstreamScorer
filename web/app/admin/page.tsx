@@ -5,8 +5,24 @@ import { useSearchParams } from 'next/navigation';
 import { MatchRecord } from '@/lib/supabase';
 import { COLORS } from '@/lib/constants';
 
+// Interface for admin event details
+interface AdminEventDetails {
+  event_name: string;
+  password_hash: string;
+  match_state: string;
+  created_at: string;
+  updated_at: string;
+  red_team1: string;
+  red_team2: string;
+  blue_team1: string;
+  blue_team2: string;
+  timer_running: boolean;
+  timer_paused: boolean;
+  timer_seconds_remaining: number;
+}
+
 // API helper to get all events (admin only)
-async function getAllEventsAPI(adminPassword: string): Promise<{ events: string[]; error?: string }> {
+async function getAllEventsAPI(adminPassword: string): Promise<{ events: string[]; eventDetails: AdminEventDetails[]; error?: string }> {
   try {
     const response = await fetch('/api/admin/events', {
       method: 'POST',
@@ -15,12 +31,12 @@ async function getAllEventsAPI(adminPassword: string): Promise<{ events: string[
     });
     const result = await response.json();
     if (result.success) {
-      return { events: result.events || [] };
+      return { events: result.events || [], eventDetails: result.eventDetails || [] };
     }
-    return { events: [], error: result.message };
+    return { events: [], eventDetails: [], error: result.message };
   } catch (error) {
     console.error('Error fetching events:', error);
-    return { events: [], error: 'Network error' };
+    return { events: [], eventDetails: [], error: 'Network error' };
   }
 }
 
@@ -43,6 +59,7 @@ interface EventWithMatches {
   eventName: string;
   matches: MatchRecord[];
   expanded: boolean;
+  details?: AdminEventDetails;
 }
 
 function AdminPageContent() {
@@ -54,6 +71,31 @@ function AdminPageContent() {
   const [adminPassword, setAdminPassword] = useState('');
   const [events, setEvents] = useState<EventWithMatches[]>([]);
   const [lastRefresh, setLastRefresh] = useState<string>('');
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  // Get match state color and label
+  const getMatchStateInfo = (state: string): { color: string; label: string } => {
+    switch (state) {
+      case 'NOT_STARTED':
+        return { color: 'bg-gray-500', label: 'Ready' };
+      case 'AUTONOMOUS':
+        return { color: 'bg-green-600', label: 'Auto' };
+      case 'TRANSITION':
+        return { color: 'bg-yellow-500', label: 'Transition' };
+      case 'TELEOP':
+        return { color: 'bg-blue-600', label: 'TeleOp' };
+      case 'END_GAME':
+        return { color: 'bg-orange-500', label: 'End Game' };
+      case 'FINISHED':
+        return { color: 'bg-red-600', label: 'Finished' };
+      case 'UNDER_REVIEW':
+        return { color: 'bg-yellow-600', label: 'Review' };
+      case 'SCORES_RELEASED':
+        return { color: 'bg-purple-600', label: 'Results' };
+      default:
+        return { color: 'bg-gray-400', label: state };
+    }
+  };
 
   // Handle login
   const handleLogin = async (e: React.FormEvent) => {
@@ -69,14 +111,16 @@ function AdminPageContent() {
       return;
     }
     
-    // Load matches for all events
+    // Load matches for all events and include details
     const eventsWithMatches: EventWithMatches[] = await Promise.all(
       result.events.map(async (eventName) => {
         const matches = await getEventMatchesAPI(eventName);
+        const details = result.eventDetails.find(d => d.event_name === eventName);
         return {
           eventName,
           matches,
           expanded: false,
+          details,
         };
       })
     );
@@ -103,10 +147,12 @@ function AdminPageContent() {
       result.events.map(async (eventName) => {
         const matches = await getEventMatchesAPI(eventName);
         const existingEvent = events.find(e => e.eventName === eventName);
+        const details = result.eventDetails.find(d => d.event_name === eventName);
         return {
           eventName,
           matches,
           expanded: existingEvent?.expanded ?? false,
+          details,
         };
       })
     );
@@ -128,6 +174,7 @@ function AdminPageContent() {
   const redWins = events.reduce((sum, e) => sum + e.matches.filter(m => m.winner === 'RED').length, 0);
   const blueWins = events.reduce((sum, e) => sum + e.matches.filter(m => m.winner === 'BLUE').length, 0);
   const ties = events.reduce((sum, e) => sum + e.matches.filter(m => m.winner === 'TIE').length, 0);
+  const activeEvents = events.filter(e => e.details?.match_state !== 'NOT_STARTED' && e.details?.match_state !== 'SCORES_RELEASED').length;
 
   // Login form
   if (!isAuthenticated) {
@@ -167,7 +214,7 @@ function AdminPageContent() {
           </form>
           
           <p className="text-sm text-gray-500 mt-4 text-center">
-            Admin access required to view all events and matches.
+            Admin access required to view all events, passwords, and match status.
           </p>
         </div>
       </div>
@@ -182,7 +229,7 @@ function AdminPageContent() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">🔐 Admin Dashboard</h1>
-            <p className="text-purple-200 text-sm">View all events and match history</p>
+            <p className="text-purple-200 text-sm">View all events, passwords, and match status</p>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-purple-200">Last refresh: {lastRefresh}</span>
@@ -192,6 +239,12 @@ function AdminPageContent() {
               className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-500 disabled:opacity-50"
             >
               🔄 Refresh
+            </button>
+            <button
+              onClick={() => setShowPasswords(!showPasswords)}
+              className={`px-4 py-2 rounded ${showPasswords ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-gray-600 hover:bg-gray-500'}`}
+            >
+              {showPasswords ? '🔓 Hide Passwords' : '🔒 Show Passwords'}
             </button>
             <button
               onClick={() => {
@@ -209,10 +262,14 @@ function AdminPageContent() {
 
       {/* Stats Overview */}
       <div className="p-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-gray-500 text-sm">Total Events</div>
             <div className="text-3xl font-bold text-purple-600">{events.length}</div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow">
+            <div className="text-gray-500 text-sm">Active Now</div>
+            <div className="text-3xl font-bold text-green-600">{activeEvents}</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-gray-500 text-sm">Total Matches</div>
@@ -239,114 +296,161 @@ function AdminPageContent() {
               No events found. Events will appear here when created.
             </div>
           ) : (
-            events.map((event) => (
-              <div key={event.eventName} className="bg-white rounded-lg shadow overflow-hidden">
-                {/* Event Header */}
-                <button
-                  onClick={() => toggleEvent(event.eventName)}
-                  className="w-full px-6 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-xl">{event.expanded ? '📂' : '📁'}</span>
-                    <div className="text-left">
-                      <div className="font-bold text-lg">{event.eventName}</div>
-                      <div className="text-gray-500 text-sm">
-                        {event.matches.length} matches • 
-                        {event.matches.filter(m => m.winner === 'RED').length} red wins • 
-                        {event.matches.filter(m => m.winner === 'BLUE').length} blue wins
+            events.map((event) => {
+              const stateInfo = getMatchStateInfo(event.details?.match_state || 'NOT_STARTED');
+              return (
+                <div key={event.eventName} className="bg-white rounded-lg shadow overflow-hidden">
+                  {/* Event Header */}
+                  <div className="px-6 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4 flex-1">
+                      <button
+                        onClick={() => toggleEvent(event.eventName)}
+                        className="text-xl"
+                      >
+                        {event.expanded ? '📂' : '📁'}
+                      </button>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-lg">{event.eventName}</span>
+                          <span className={`px-2 py-1 rounded text-white text-xs font-bold ${stateInfo.color}`}>
+                            {stateInfo.label}
+                          </span>
+                          {event.details?.timer_running && !event.details?.timer_paused && (
+                            <span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-bold animate-pulse">
+                              ⏱️ LIVE
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-500 text-sm mt-1">
+                          {event.matches.length} matches • 
+                          {event.matches.filter(m => m.winner === 'RED').length} red wins • 
+                          {event.matches.filter(m => m.winner === 'BLUE').length} blue wins
+                          {event.details?.created_at && (
+                            <> • Created: {new Date(event.details.created_at).toLocaleDateString()}</>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <span className="text-2xl text-gray-400">
-                    {event.expanded ? '▼' : '▶'}
-                  </span>
-                </button>
-
-                {/* Matches Table */}
-                {event.expanded && (
-                  <div className="border-t">
-                    {event.matches.length === 0 ? (
-                      <div className="p-6 text-center text-gray-500">
-                        No matches recorded yet for this event.
+                    
+                    {/* Password and Teams Info */}
+                    <div className="flex items-center gap-6">
+                      {/* Password */}
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Password Hash</div>
+                        <div className="font-mono text-sm">
+                          {showPasswords 
+                            ? (event.details?.password_hash?.substring(0, 20) + '...' || 'N/A')
+                            : '••••••••••'}
+                        </div>
                       </div>
-                    ) : (
-                      <table className="w-full">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-4 py-2 text-left">#</th>
-                            <th className="px-4 py-2 text-left">Red Teams</th>
-                            <th className="px-4 py-2 text-center">Red Score</th>
-                            <th className="px-4 py-2 text-center">Blue Score</th>
-                            <th className="px-4 py-2 text-left">Blue Teams</th>
-                            <th className="px-4 py-2 text-center">Winner</th>
-                            <th className="px-4 py-2 text-left">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {event.matches.map((match) => (
-                            <tr key={match.id} className="border-t hover:bg-gray-50">
-                              <td className="px-4 py-3 font-bold">{match.match_number}</td>
-                              <td className="px-4 py-3">
-                                <span className="text-red-600">{match.red_team1 || '----'}</span>
-                                {' + '}
-                                <span className="text-red-600">{match.red_team2 || '----'}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span 
-                                  className="font-bold px-3 py-1 rounded"
-                                  style={{ 
-                                    backgroundColor: match.winner === 'RED' ? COLORS.RED_PRIMARY : '#f3f4f6',
-                                    color: match.winner === 'RED' ? 'white' : COLORS.RED_PRIMARY,
-                                  }}
-                                >
-                                  {match.red_total_score}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span 
-                                  className="font-bold px-3 py-1 rounded"
-                                  style={{ 
-                                    backgroundColor: match.winner === 'BLUE' ? COLORS.BLUE_PRIMARY : '#f3f4f6',
-                                    color: match.winner === 'BLUE' ? 'white' : COLORS.BLUE_PRIMARY,
-                                  }}
-                                >
-                                  {match.blue_total_score}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="text-blue-600">{match.blue_team1 || '----'}</span>
-                                {' + '}
-                                <span className="text-blue-600">{match.blue_team2 || '----'}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {match.winner === 'RED' && (
-                                  <span className="px-2 py-1 rounded text-white font-bold" style={{ backgroundColor: COLORS.RED_PRIMARY }}>
-                                    🔴 RED
-                                  </span>
-                                )}
-                                {match.winner === 'BLUE' && (
-                                  <span className="px-2 py-1 rounded text-white font-bold" style={{ backgroundColor: COLORS.BLUE_PRIMARY }}>
-                                    🔵 BLUE
-                                  </span>
-                                )}
-                                {match.winner === 'TIE' && (
-                                  <span className="px-2 py-1 rounded bg-yellow-500 text-white font-bold">
-                                    🤝 TIE
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-500 text-sm">
-                                {new Date(match.recorded_at).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                      
+                      {/* Current Teams */}
+                      {(event.details?.red_team1 || event.details?.blue_team1) && (
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500">Current Match</div>
+                          <div className="text-sm">
+                            <span className="text-red-600">{event.details?.red_team1 || '----'} + {event.details?.red_team2 || '----'}</span>
+                            <span className="mx-2 text-gray-400">vs</span>
+                            <span className="text-blue-600">{event.details?.blue_team1 || '----'} + {event.details?.blue_team2 || '----'}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <button
+                        onClick={() => toggleEvent(event.eventName)}
+                        className="text-2xl text-gray-400"
+                      >
+                        {event.expanded ? '▼' : '▶'}
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))
+
+                  {/* Matches Table */}
+                  {event.expanded && (
+                    <div className="border-t">
+                      {event.matches.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">
+                          No matches recorded yet for this event.
+                        </div>
+                      ) : (
+                        <table className="w-full">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-4 py-2 text-left">#</th>
+                              <th className="px-4 py-2 text-left">Red Teams</th>
+                              <th className="px-4 py-2 text-center">Red Score</th>
+                              <th className="px-4 py-2 text-center">Blue Score</th>
+                              <th className="px-4 py-2 text-left">Blue Teams</th>
+                              <th className="px-4 py-2 text-center">Winner</th>
+                              <th className="px-4 py-2 text-left">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {event.matches.map((match) => (
+                              <tr key={match.id} className="border-t hover:bg-gray-50">
+                                <td className="px-4 py-3 font-bold">{match.match_number}</td>
+                                <td className="px-4 py-3">
+                                  <span className="text-red-600">{match.red_team1 || '----'}</span>
+                                  {' + '}
+                                  <span className="text-red-600">{match.red_team2 || '----'}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span 
+                                    className="font-bold px-3 py-1 rounded"
+                                    style={{ 
+                                      backgroundColor: match.winner === 'RED' ? COLORS.RED_PRIMARY : '#f3f4f6',
+                                      color: match.winner === 'RED' ? 'white' : COLORS.RED_PRIMARY,
+                                    }}
+                                  >
+                                    {match.red_total_score}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span 
+                                    className="font-bold px-3 py-1 rounded"
+                                    style={{ 
+                                      backgroundColor: match.winner === 'BLUE' ? COLORS.BLUE_PRIMARY : '#f3f4f6',
+                                      color: match.winner === 'BLUE' ? 'white' : COLORS.BLUE_PRIMARY,
+                                    }}
+                                  >
+                                    {match.blue_total_score}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-blue-600">{match.blue_team1 || '----'}</span>
+                                  {' + '}
+                                  <span className="text-blue-600">{match.blue_team2 || '----'}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {match.winner === 'RED' && (
+                                    <span className="px-2 py-1 rounded text-white font-bold" style={{ backgroundColor: COLORS.RED_PRIMARY }}>
+                                      🔴 RED
+                                    </span>
+                                  )}
+                                  {match.winner === 'BLUE' && (
+                                    <span className="px-2 py-1 rounded text-white font-bold" style={{ backgroundColor: COLORS.BLUE_PRIMARY }}>
+                                      🔵 BLUE
+                                    </span>
+                                  )}
+                                  {match.winner === 'TIE' && (
+                                    <span className="px-2 py-1 rounded bg-yellow-500 text-white font-bold">
+                                      🤝 TIE
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-gray-500 text-sm">
+                                  {new Date(match.recorded_at).toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 
