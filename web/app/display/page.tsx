@@ -910,6 +910,7 @@ function DisplayPageContent() {
   }
 
   // Camera mode - responsive layout with host camera/video on top and scores at bottom
+  // Camera ALWAYS runs underneath - overlays (winner video, score breakdown) appear on top
   if (displayMode === 'camera') {
     return (
       <div 
@@ -934,206 +935,9 @@ function DisplayPageContent() {
           {/* Hidden audio element for results sound */}
           <audio ref={audioRef} preload="auto" />
           
-          {/* Winner Video Overlay - positioned above the video area only, not the score bar */}
-          {showWinnerVideo && winnerVideoSrc && (
-            <div className="absolute inset-0 z-20">
-              <video
-                ref={videoRef}
-                src={winnerVideoSrc}
-                autoPlay
-                onEnded={handleVideoEnd}
-                className="w-full h-full object-contain"
-                style={{ backgroundColor: COLORS.BLACK }}
-              />
-            </div>
-          )}
-          
-          {/* Final Results Display (after video) - contained within video area, doesn't overlap score bar */}
-          {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && !showCameraOverride && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-auto" style={{ backgroundColor: COLORS.BLACK }}>
-              <div 
-                className="text-white font-bold mb-4"
-                style={{ 
-                  fontSize: 'clamp(24px, 4vw, 48px)',
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >
-                🏆 FINAL RESULTS 🏆
-              </div>
-              <div className="flex gap-8 md:gap-16 mb-4">
-                <div className="text-center">
-                  <div className="text-red-500 font-bold mb-1" style={{ fontSize: 'clamp(16px, 2.5vw, 28px)' }}>RED ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: 'clamp(40px, 7vw, 80px)' }}>
-                    {calculateTotalWithPenalties(redScore, blueScore)}
-                  </div>
-                  <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 18px)' }}>
-                    {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-blue-500 font-bold mb-1" style={{ fontSize: 'clamp(16px, 2.5vw, 28px)' }}>BLUE ALLIANCE</div>
-                  <div className="text-white font-bold" style={{ fontSize: 'clamp(40px, 7vw, 80px)' }}>
-                    {calculateTotalWithPenalties(blueScore, redScore)}
-                  </div>
-                  <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 18px)' }}>
-                    {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
-                  </div>
-                </div>
-              </div>
-              <div 
-                className="text-yellow-400 font-bold mb-4 animate-pulse"
-                style={{ fontSize: 'clamp(20px, 3vw, 36px)' }}
-              >
-                {calculateTotalWithPenalties(redScore, blueScore) > calculateTotalWithPenalties(blueScore, redScore) 
-                  ? '🔴 RED WINS! 🔴' 
-                  : calculateTotalWithPenalties(blueScore, redScore) > calculateTotalWithPenalties(redScore, blueScore)
-                    ? '🔵 BLUE WINS! 🔵'
-                    : '🤝 TIE GAME! 🤝'
-                }
-              </div>
-              
-              {/* Score Breakdown Table */}
-              <div className="flex gap-4 md:gap-8 flex-wrap justify-center">
-                {/* Red Score Breakdown */}
-                {(() => {
-                  const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
-                  return (
-                    <div className="bg-red-900/50 rounded-lg p-2 md:p-4 min-w-[200px] max-w-[280px]">
-                      <div className="text-red-300 font-bold text-center mb-2 md:mb-3" style={{ fontSize: 'clamp(14px, 1.5vw, 20px)' }}>RED BREAKDOWN</div>
-                      <table className="w-full text-white" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>
-                        <tbody>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">🚗 Auto Leave</td>
-                            <td className="text-right font-bold">{redBreakdown.autoLeave}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">🟢 Auto Classified (×3)</td>
-                            <td className="text-right font-bold">{redBreakdown.autoClassified}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">➕ Auto Overflow</td>
-                            <td className="text-right font-bold">{redBreakdown.autoOverflow}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">✔ Auto Pattern (×2)</td>
-                            <td className="text-right font-bold">{redBreakdown.autoPattern}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50 bg-red-800/30">
-                            <td className="py-1 font-bold">Auto Subtotal</td>
-                            <td className="text-right font-bold">{redBreakdown.autoTotal}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">🟢 Teleop Classified (×3)</td>
-                            <td className="text-right font-bold">{redBreakdown.teleopClassified}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">➕ Teleop Overflow</td>
-                            <td className="text-right font-bold">{redBreakdown.teleopOverflow}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">📦 Teleop Depot</td>
-                            <td className="text-right font-bold">{redBreakdown.teleopDepot}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">✔ Teleop Pattern (×2)</td>
-                            <td className="text-right font-bold">{redBreakdown.teleopPattern}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50 bg-red-800/30">
-                            <td className="py-1 font-bold">Teleop Subtotal</td>
-                            <td className="text-right font-bold">{redBreakdown.teleopTotal}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">🏠 BASE Return</td>
-                            <td className="text-right font-bold">{redBreakdown.endgameBase}</td>
-                          </tr>
-                          <tr className="border-b border-red-700/50">
-                            <td className="py-1">⚠ Opponent Penalties</td>
-                            <td className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</td>
-                          </tr>
-                          <tr className="bg-red-700/50">
-                            <td className="py-2 font-bold text-lg">TOTAL</td>
-                            <td className="text-right font-bold text-lg">{redBreakdown.totalScore}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-                
-                {/* Blue Score Breakdown */}
-                {(() => {
-                  const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
-                  return (
-                    <div className="bg-blue-900/50 rounded-lg p-4 min-w-[280px]">
-                      <div className="text-blue-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>BLUE BREAKDOWN</div>
-                      <table className="w-full text-white" style={{ fontSize: '14px' }}>
-                        <tbody>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">🚗 Auto Leave</td>
-                            <td className="text-right font-bold">{blueBreakdown.autoLeave}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">🟢 Auto Classified (×3)</td>
-                            <td className="text-right font-bold">{blueBreakdown.autoClassified}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">➕ Auto Overflow</td>
-                            <td className="text-right font-bold">{blueBreakdown.autoOverflow}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">✔ Auto Pattern (×2)</td>
-                            <td className="text-right font-bold">{blueBreakdown.autoPattern}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50 bg-blue-800/30">
-                            <td className="py-1 font-bold">Auto Subtotal</td>
-                            <td className="text-right font-bold">{blueBreakdown.autoTotal}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">🟢 Teleop Classified (×3)</td>
-                            <td className="text-right font-bold">{blueBreakdown.teleopClassified}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">➕ Teleop Overflow</td>
-                            <td className="text-right font-bold">{blueBreakdown.teleopOverflow}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">📦 Teleop Depot</td>
-                            <td className="text-right font-bold">{blueBreakdown.teleopDepot}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">✔ Teleop Pattern (×2)</td>
-                            <td className="text-right font-bold">{blueBreakdown.teleopPattern}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50 bg-blue-800/30">
-                            <td className="py-1 font-bold">Teleop Subtotal</td>
-                            <td className="text-right font-bold">{blueBreakdown.teleopTotal}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">🏠 BASE Return</td>
-                            <td className="text-right font-bold">{blueBreakdown.endgameBase}</td>
-                          </tr>
-                          <tr className="border-b border-blue-700/50">
-                            <td className="py-1">⚠ Opponent Penalties</td>
-                            <td className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</td>
-                          </tr>
-                          <tr className="bg-blue-700/50">
-                            <td className="py-2 font-bold text-lg">TOTAL</td>
-                            <td className="text-right font-bold text-lg">{blueBreakdown.totalScore}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-          
-          {/* Normal camera/stream display when not showing results OR when camera override is active */}
-          {!showWinnerVideo && (eventData?.match_state !== 'SCORES_RELEASED' || showCameraOverride) && (
-            <>
-              {/* Priority 1: Show host's WebRTC video stream if available */}
-              {hostVideoStream ? (
+          {/* BASE LAYER (z-0): Camera/video stream - ALWAYS visible underneath overlays */}
+          <div className="absolute inset-0 z-0 flex items-center justify-center">
+            {hostVideoStream ? (
               <video
                 ref={hostVideoRef}
                 autoPlay
@@ -1143,7 +947,6 @@ function DisplayPageContent() {
                 style={{ backgroundColor: COLORS.BLACK }}
               />
             ) : eventData?.livestream_url && isValidLivestreamUrl(eventData.livestream_url) ? (
-              // Priority 2: Show embedded livestream URL
               <iframe
                 src={eventData.livestream_url}
                 className="w-full h-full border-0"
@@ -1153,43 +956,19 @@ function DisplayPageContent() {
               />
             ) : eventData?.livestream_url ? (
               <div className="text-yellow-500 text-center">
-                <div 
-                  className="font-bold mb-2"
-                  style={{ 
-                    fontSize: '32px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
+                <div className="font-bold mb-2" style={{ fontSize: '32px', fontFamily: 'Arial, sans-serif' }}>
                   ⚠️ Invalid Stream URL
                 </div>
-                <div 
-                  style={{ 
-                    fontSize: '18px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
+                <div style={{ fontSize: '18px', fontFamily: 'Arial, sans-serif' }}>
                   Only YouTube, Twitch, and Vimeo URLs are supported
                 </div>
               </div>
             ) : eventData?.video_enabled ? (
-              // Priority 3: Video enabled but not connected yet
               <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
-                <div 
-                  className="font-bold mb-4 text-yellow-400"
-                  style={{ 
-                    fontSize: '36px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
+                <div className="font-bold mb-4 text-yellow-400" style={{ fontSize: '36px', fontFamily: 'Arial, sans-serif' }}>
                   📡 Connecting to Host Camera...
                 </div>
-                <div 
-                  className="text-gray-500"
-                  style={{ 
-                    fontSize: '18px',
-                    fontFamily: 'Arial, sans-serif',
-                  }}
-                >
+                <div className="text-gray-500" style={{ fontSize: '18px', fontFamily: 'Arial, sans-serif' }}>
                   {videoConnectionStatus || 'Waiting for video stream...'}
                 </div>
                 <div className="mt-4">
@@ -1197,65 +976,28 @@ function DisplayPageContent() {
                 </div>
               </div>
             ) : (
-              // Priority 4: No video source - show status
               <div className="text-gray-400 text-center flex flex-col items-center justify-center h-full">
                 {eventData?.match_state === 'NOT_STARTED' ? (
                   <>
-                    <div 
-                      className="font-bold mb-4"
-                      style={{ 
-                        fontSize: '48px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="font-bold mb-4" style={{ fontSize: '48px', fontFamily: 'Arial, sans-serif' }}>
                       ⏳ Match Ready
                     </div>
-                    <div 
-                      className="text-gray-500"
-                      style={{ 
-                        fontSize: '24px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="text-gray-500" style={{ fontSize: '24px', fontFamily: 'Arial, sans-serif' }}>
                       Waiting for host to start the match
                     </div>
-                    <div 
-                      className="text-gray-600 mt-4"
-                      style={{ 
-                        fontSize: '16px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="text-gray-600 mt-4" style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif' }}>
                       Event: {eventName}
                     </div>
-                    <div 
-                      className="text-yellow-500 mt-6 p-4 bg-yellow-900/30 rounded-lg max-w-lg"
-                      style={{ 
-                        fontSize: '14px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="text-yellow-500 mt-6 p-4 bg-yellow-900/30 rounded-lg max-w-lg" style={{ fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
                       📹 <strong>To show video:</strong> Host can click &quot;Stream to Display&quot; in Camera Preview to stream their camera directly here.
                     </div>
                   </>
                 ) : (
                   <>
-                    <div 
-                      className="font-bold mb-4 text-green-400"
-                      style={{ 
-                        fontSize: '36px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="font-bold mb-4 text-green-400" style={{ fontSize: '36px', fontFamily: 'Arial, sans-serif' }}>
                       🟢 Match In Progress
                     </div>
-                    <div 
-                      className="text-white font-bold"
-                      style={{ 
-                        fontSize: '72px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="text-white font-bold" style={{ fontSize: '72px', fontFamily: 'Arial, sans-serif' }}>
                       {timerDisplay}
                     </div>
                     <div 
@@ -1268,27 +1010,116 @@ function DisplayPageContent() {
                         eventData?.match_state === 'UNDER_REVIEW' ? 'text-yellow-400' :
                         'text-gray-400'
                       }`}
-                      style={{ 
-                        fontSize: '28px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
+                      style={{ fontSize: '28px', fontFamily: 'Arial, sans-serif' }}
                     >
                       {eventData?.match_state?.replace(/_/g, ' ')}
                     </div>
-                    <div 
-                      className="text-gray-500 mt-6"
-                      style={{ 
-                        fontSize: '14px',
-                        fontFamily: 'Arial, sans-serif',
-                      }}
-                    >
+                    <div className="text-gray-500 mt-6" style={{ fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
                       💡 No stream URL configured. Set one in host controls or use this as an OBS overlay.
                     </div>
                   </>
                 )}
               </div>
             )}
-            </>
+          </div>
+          
+          {/* OVERLAY LAYER (z-10): Final Results - appears ON TOP of camera when SCORES_RELEASED */}
+          {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && !showCameraOverride && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-2" style={{ backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
+              {/* Compact header */}
+              <div className="text-white font-bold" style={{ fontSize: 'clamp(18px, 3vw, 32px)', fontFamily: 'Arial, sans-serif' }}>
+                🏆 FINAL RESULTS 🏆
+              </div>
+              
+              {/* Score summary - horizontal layout */}
+              <div className="flex gap-4 md:gap-8 my-2">
+                <div className="text-center">
+                  <div className="text-red-500 font-bold" style={{ fontSize: 'clamp(12px, 2vw, 20px)' }}>RED</div>
+                  <div className="text-white font-bold" style={{ fontSize: 'clamp(32px, 5vw, 60px)' }}>
+                    {calculateTotalWithPenalties(redScore, blueScore)}
+                  </div>
+                  <div className="text-gray-400" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>
+                    {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
+                  </div>
+                </div>
+                <div className="text-center flex items-center">
+                  <div className="text-yellow-400 font-bold animate-pulse" style={{ fontSize: 'clamp(14px, 2vw, 24px)' }}>
+                    {calculateTotalWithPenalties(redScore, blueScore) > calculateTotalWithPenalties(blueScore, redScore) 
+                      ? '🔴 RED WINS!' 
+                      : calculateTotalWithPenalties(blueScore, redScore) > calculateTotalWithPenalties(redScore, blueScore)
+                        ? '🔵 BLUE WINS!'
+                        : '🤝 TIE!'
+                    }
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-blue-500 font-bold" style={{ fontSize: 'clamp(12px, 2vw, 20px)' }}>BLUE</div>
+                  <div className="text-white font-bold" style={{ fontSize: 'clamp(32px, 5vw, 60px)' }}>
+                    {calculateTotalWithPenalties(blueScore, redScore)}
+                  </div>
+                  <div className="text-gray-400" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>
+                    {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Compact Score Breakdown - side by side, fits screen without scrolling */}
+              <div className="flex gap-2 md:gap-4 w-full max-w-4xl px-2">
+                {/* Red Score Breakdown - Compact */}
+                {(() => {
+                  const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
+                  return (
+                    <div className="flex-1 bg-red-900/70 rounded p-1 md:p-2">
+                      <div className="text-red-300 font-bold text-center" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>RED</div>
+                      <div className="grid grid-cols-2 gap-x-1 text-white" style={{ fontSize: 'clamp(8px, 1vw, 11px)' }}>
+                        <span>🚗 Leave</span><span className="text-right font-bold">{redBreakdown.autoLeave}</span>
+                        <span>🟢 Classified</span><span className="text-right font-bold">{redBreakdown.autoClassified + redBreakdown.teleopClassified}</span>
+                        <span>➕ Overflow</span><span className="text-right font-bold">{redBreakdown.autoOverflow + redBreakdown.teleopOverflow + redBreakdown.teleopDepot}</span>
+                        <span>✔ Pattern</span><span className="text-right font-bold">{redBreakdown.autoPattern + redBreakdown.teleopPattern}</span>
+                        <span>🏠 Base</span><span className="text-right font-bold">{redBreakdown.endgameBase}</span>
+                        <span>⚠ Penalties</span><span className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</span>
+                        <span className="font-bold border-t border-red-500 pt-1">TOTAL</span>
+                        <span className="text-right font-bold border-t border-red-500 pt-1">{redBreakdown.totalScore}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {/* Blue Score Breakdown - Compact */}
+                {(() => {
+                  const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
+                  return (
+                    <div className="flex-1 bg-blue-900/70 rounded p-1 md:p-2">
+                      <div className="text-blue-300 font-bold text-center" style={{ fontSize: 'clamp(10px, 1.2vw, 14px)' }}>BLUE</div>
+                      <div className="grid grid-cols-2 gap-x-1 text-white" style={{ fontSize: 'clamp(8px, 1vw, 11px)' }}>
+                        <span>🚗 Leave</span><span className="text-right font-bold">{blueBreakdown.autoLeave}</span>
+                        <span>🟢 Classified</span><span className="text-right font-bold">{blueBreakdown.autoClassified + blueBreakdown.teleopClassified}</span>
+                        <span>➕ Overflow</span><span className="text-right font-bold">{blueBreakdown.autoOverflow + blueBreakdown.teleopOverflow + blueBreakdown.teleopDepot}</span>
+                        <span>✔ Pattern</span><span className="text-right font-bold">{blueBreakdown.autoPattern + blueBreakdown.teleopPattern}</span>
+                        <span>🏠 Base</span><span className="text-right font-bold">{blueBreakdown.endgameBase}</span>
+                        <span>⚠ Penalties</span><span className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</span>
+                        <span className="font-bold border-t border-blue-500 pt-1">TOTAL</span>
+                        <span className="text-right font-bold border-t border-blue-500 pt-1">{blueBreakdown.totalScore}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+          
+          {/* OVERLAY LAYER (z-20): Winner Video - appears ON TOP of everything during video playback */}
+          {showWinnerVideo && winnerVideoSrc && (
+            <div className="absolute inset-0 z-20">
+              <video
+                ref={videoRef}
+                src={winnerVideoSrc}
+                autoPlay
+                onEnded={handleVideoEnd}
+                className="w-full h-full object-contain"
+                style={{ backgroundColor: COLORS.BLACK }}
+              />
+            </div>
           )}
         </div>
 
@@ -1342,186 +1173,90 @@ function DisplayPageContent() {
         </div>
       )}
       
-      {/* Final Results Display (after video) - positioned above ScoreBar */}
+      {/* Final Results Display (after video) - positioned above ScoreBar, compact to fit screen */}
       {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
         <div 
-          className="absolute left-0 right-0 top-0 z-30 flex flex-col items-center justify-center overflow-auto" 
+          className="absolute left-0 right-0 top-0 z-30 flex flex-col items-center justify-center p-4" 
           style={{ 
             backgroundColor: COLORS.BLACK,
             height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%`,
           }}
         >
-          <div 
-            className="text-white font-bold mb-4"
-            style={{ 
-              fontSize: '48px',
-              fontFamily: 'Arial, sans-serif',
-            }}
-          >
+          {/* Compact header */}
+          <div className="text-white font-bold" style={{ fontSize: 'clamp(24px, 4vw, 40px)', fontFamily: 'Arial, sans-serif' }}>
             🏆 FINAL RESULTS 🏆
           </div>
-          <div className="flex gap-16 mb-4">
+          
+          {/* Score summary - horizontal layout */}
+          <div className="flex gap-8 md:gap-16 my-2">
             <div className="text-center">
-              <div className="text-red-500 font-bold mb-1" style={{ fontSize: '28px' }}>RED ALLIANCE</div>
-              <div className="text-white font-bold" style={{ fontSize: '80px' }}>
+              <div className="text-red-500 font-bold" style={{ fontSize: 'clamp(16px, 2.5vw, 24px)' }}>RED ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: 'clamp(48px, 8vw, 72px)' }}>
                 {redTotal}
               </div>
-              <div className="text-gray-400" style={{ fontSize: '18px' }}>
+              <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 16px)' }}>
                 {eventData?.red_team1 || '----'} + {eventData?.red_team2 || '----'}
               </div>
             </div>
+            <div className="text-center flex items-center">
+              <div className="text-yellow-400 font-bold animate-pulse" style={{ fontSize: 'clamp(18px, 3vw, 32px)' }}>
+                {redTotal > blueTotal 
+                  ? '🔴 RED WINS!' 
+                  : blueTotal > redTotal
+                    ? '🔵 BLUE WINS!'
+                    : '🤝 TIE!'
+                }
+              </div>
+            </div>
             <div className="text-center">
-              <div className="text-blue-500 font-bold mb-1" style={{ fontSize: '28px' }}>BLUE ALLIANCE</div>
-              <div className="text-white font-bold" style={{ fontSize: '80px' }}>
+              <div className="text-blue-500 font-bold" style={{ fontSize: 'clamp(16px, 2.5vw, 24px)' }}>BLUE ALLIANCE</div>
+              <div className="text-white font-bold" style={{ fontSize: 'clamp(48px, 8vw, 72px)' }}>
                 {blueTotal}
               </div>
-              <div className="text-gray-400" style={{ fontSize: '18px' }}>
+              <div className="text-gray-400" style={{ fontSize: 'clamp(12px, 1.5vw, 16px)' }}>
                 {eventData?.blue_team1 || '----'} + {eventData?.blue_team2 || '----'}
               </div>
             </div>
           </div>
-          <div 
-            className="text-yellow-400 font-bold mb-4 animate-pulse"
-            style={{ fontSize: '36px' }}
-          >
-            {redTotal > blueTotal 
-              ? '🔴 RED WINS! 🔴' 
-              : blueTotal > redTotal
-                ? '🔵 BLUE WINS! 🔵'
-                : '🤝 TIE GAME! 🤝'
-            }
-          </div>
           
-          {/* Score Breakdown Table */}
-          <div className="flex gap-8">
-            {/* Red Score Breakdown */}
+          {/* Compact Score Breakdown - side by side */}
+          <div className="flex gap-4 md:gap-8 w-full max-w-5xl px-4">
+            {/* Red Score Breakdown - Compact */}
             {(() => {
               const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
               return (
-                <div className="bg-red-900/50 rounded-lg p-4 min-w-[280px]">
-                  <div className="text-red-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>RED BREAKDOWN</div>
-                  <table className="w-full text-white" style={{ fontSize: '14px' }}>
-                    <tbody>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">🚗 Auto Leave</td>
-                        <td className="text-right font-bold">{redBreakdown.autoLeave}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">🟢 Auto Classified (×3)</td>
-                        <td className="text-right font-bold">{redBreakdown.autoClassified}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">➕ Auto Overflow</td>
-                        <td className="text-right font-bold">{redBreakdown.autoOverflow}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">✔ Auto Pattern (×2)</td>
-                        <td className="text-right font-bold">{redBreakdown.autoPattern}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50 bg-red-800/30">
-                        <td className="py-1 font-bold">Auto Subtotal</td>
-                        <td className="text-right font-bold">{redBreakdown.autoTotal}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">🟢 Teleop Classified (×3)</td>
-                        <td className="text-right font-bold">{redBreakdown.teleopClassified}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">➕ Teleop Overflow</td>
-                        <td className="text-right font-bold">{redBreakdown.teleopOverflow}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">📦 Teleop Depot</td>
-                        <td className="text-right font-bold">{redBreakdown.teleopDepot}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">✔ Teleop Pattern (×2)</td>
-                        <td className="text-right font-bold">{redBreakdown.teleopPattern}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50 bg-red-800/30">
-                        <td className="py-1 font-bold">Teleop Subtotal</td>
-                        <td className="text-right font-bold">{redBreakdown.teleopTotal}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">🏠 BASE Return</td>
-                        <td className="text-right font-bold">{redBreakdown.endgameBase}</td>
-                      </tr>
-                      <tr className="border-b border-red-700/50">
-                        <td className="py-1">⚠ Opponent Penalties</td>
-                        <td className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</td>
-                      </tr>
-                      <tr className="bg-red-700/50">
-                        <td className="py-2 font-bold text-lg">TOTAL</td>
-                        <td className="text-right font-bold text-lg">{redBreakdown.totalScore}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="flex-1 bg-red-900/70 rounded p-2 md:p-3">
+                  <div className="text-red-300 font-bold text-center" style={{ fontSize: 'clamp(12px, 1.5vw, 16px)' }}>RED BREAKDOWN</div>
+                  <div className="grid grid-cols-2 gap-x-2 text-white" style={{ fontSize: 'clamp(10px, 1.2vw, 13px)' }}>
+                    <span>🚗 Leave</span><span className="text-right font-bold">{redBreakdown.autoLeave}</span>
+                    <span>🟢 Classified</span><span className="text-right font-bold">{redBreakdown.autoClassified + redBreakdown.teleopClassified}</span>
+                    <span>➕ Overflow</span><span className="text-right font-bold">{redBreakdown.autoOverflow + redBreakdown.teleopOverflow + redBreakdown.teleopDepot}</span>
+                    <span>✔ Pattern</span><span className="text-right font-bold">{redBreakdown.autoPattern + redBreakdown.teleopPattern}</span>
+                    <span>🏠 Base</span><span className="text-right font-bold">{redBreakdown.endgameBase}</span>
+                    <span>⚠ Penalties</span><span className="text-right font-bold text-green-400">+{redBreakdown.penaltyPoints}</span>
+                    <span className="font-bold border-t border-red-500 pt-1">TOTAL</span>
+                    <span className="text-right font-bold border-t border-red-500 pt-1">{redBreakdown.totalScore}</span>
+                  </div>
                 </div>
               );
             })()}
             
-            {/* Blue Score Breakdown */}
+            {/* Blue Score Breakdown - Compact */}
             {(() => {
               const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
               return (
-                <div className="bg-blue-900/50 rounded-lg p-4 min-w-[280px]">
-                  <div className="text-blue-300 font-bold text-center mb-3" style={{ fontSize: '20px' }}>BLUE BREAKDOWN</div>
-                  <table className="w-full text-white" style={{ fontSize: '14px' }}>
-                    <tbody>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">🚗 Auto Leave</td>
-                        <td className="text-right font-bold">{blueBreakdown.autoLeave}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">🟢 Auto Classified (×3)</td>
-                        <td className="text-right font-bold">{blueBreakdown.autoClassified}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">➕ Auto Overflow</td>
-                        <td className="text-right font-bold">{blueBreakdown.autoOverflow}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">✔ Auto Pattern (×2)</td>
-                        <td className="text-right font-bold">{blueBreakdown.autoPattern}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50 bg-blue-800/30">
-                        <td className="py-1 font-bold">Auto Subtotal</td>
-                        <td className="text-right font-bold">{blueBreakdown.autoTotal}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">🟢 Teleop Classified (×3)</td>
-                        <td className="text-right font-bold">{blueBreakdown.teleopClassified}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">➕ Teleop Overflow</td>
-                        <td className="text-right font-bold">{blueBreakdown.teleopOverflow}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">📦 Teleop Depot</td>
-                        <td className="text-right font-bold">{blueBreakdown.teleopDepot}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">✔ Teleop Pattern (×2)</td>
-                        <td className="text-right font-bold">{blueBreakdown.teleopPattern}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50 bg-blue-800/30">
-                        <td className="py-1 font-bold">Teleop Subtotal</td>
-                        <td className="text-right font-bold">{blueBreakdown.teleopTotal}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">🏠 BASE Return</td>
-                        <td className="text-right font-bold">{blueBreakdown.endgameBase}</td>
-                      </tr>
-                      <tr className="border-b border-blue-700/50">
-                        <td className="py-1">⚠ Opponent Penalties</td>
-                        <td className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</td>
-                      </tr>
-                      <tr className="bg-blue-700/50">
-                        <td className="py-2 font-bold text-lg">TOTAL</td>
-                        <td className="text-right font-bold text-lg">{blueBreakdown.totalScore}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="flex-1 bg-blue-900/70 rounded p-2 md:p-3">
+                  <div className="text-blue-300 font-bold text-center" style={{ fontSize: 'clamp(12px, 1.5vw, 16px)' }}>BLUE BREAKDOWN</div>
+                  <div className="grid grid-cols-2 gap-x-2 text-white" style={{ fontSize: 'clamp(10px, 1.2vw, 13px)' }}>
+                    <span>🚗 Leave</span><span className="text-right font-bold">{blueBreakdown.autoLeave}</span>
+                    <span>🟢 Classified</span><span className="text-right font-bold">{blueBreakdown.autoClassified + blueBreakdown.teleopClassified}</span>
+                    <span>➕ Overflow</span><span className="text-right font-bold">{blueBreakdown.autoOverflow + blueBreakdown.teleopOverflow + blueBreakdown.teleopDepot}</span>
+                    <span>✔ Pattern</span><span className="text-right font-bold">{blueBreakdown.autoPattern + blueBreakdown.teleopPattern}</span>
+                    <span>🏠 Base</span><span className="text-right font-bold">{blueBreakdown.endgameBase}</span>
+                    <span>⚠ Penalties</span><span className="text-right font-bold text-green-400">+{blueBreakdown.penaltyPoints}</span>
+                    <span className="font-bold border-t border-blue-500 pt-1">TOTAL</span>
+                    <span className="text-right font-bold border-t border-blue-500 pt-1">{blueBreakdown.totalScore}</span>
+                  </div>
                 </div>
               );
             })()}

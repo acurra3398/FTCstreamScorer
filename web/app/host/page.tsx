@@ -243,7 +243,6 @@ function HostPageContent() {
   const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [recordedMatchNumber, setRecordedMatchNumber] = useState<number | null>(null);
   const [recordedFileExtension, setRecordedFileExtension] = useState<string>('mp4');
-  const [autoRecordEnabled, setAutoRecordEnabled] = useState(true); // Auto-record by default
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
@@ -1110,6 +1109,10 @@ function HostPageContent() {
         transitionMessage = 'DRIVERS PICK UP CONTROLLERS';
       } else if (remaining > 0) {
         transitionMessage = String(remaining);
+        // Play countdown sound at 3, 2, 1
+        if (remaining === MATCH_TIMING.TRANSITION_COUNTDOWN_START) {
+          playAudio('countdown');
+        }
       }
       
       // Sync timer and transition message to database
@@ -1119,6 +1122,8 @@ function HostPageContent() {
       }).catch(console.error);
       
       if (remaining <= 0) {
+        // Play start match bell sound when teleop begins
+        playAudio('startmatch');
         setMatchPhase('TELEOP');
         setTotalElapsed(0);
         setSecondsRemaining(MATCH_TIMING.TELEOP_DURATION);
@@ -1183,7 +1188,7 @@ function HostPageContent() {
     };
   }, [timerRunning, timerPaused, tick]);
 
-  // Start match with 5-4-3-2-1 countdown synced to sound
+  // Start match with 3-2-1 countdown synced to sound
   const handleStart = async () => {
     if (timerRunning) return;
     
@@ -1200,53 +1205,50 @@ function HostPageContent() {
     const countdownNumbers = MATCH_TIMING.COUNTDOWN_NUMBERS;
     let countdownIndex = 0;
     
-    // Show first countdown number immediately
+    // Show first countdown number immediately and play countdown audio in sync
     hostActionAPI(eventName, password, 'setCountdown', { 
       countdownNumber: countdownNumbers[countdownIndex] 
     }).catch(console.error);
-    countdownIndex++;
     
-    // Play countdown audio - timer will start when this audio ENDS
-    // This ensures the timer starts at the end of the GO sound, not the first ring
-    playAudio('countdown', () => {
-      // Countdown audio has finished (including any GO sound at the end)
-      // Clear the countdown display
-      hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
-      
-      // Start the match immediately after countdown audio ends
-      setMatchPhase('AUTONOMOUS');
-      setTimerRunning(true);
-      setTimerPaused(false);
-      waitingForSound.current = false;
-      
-      // Auto-start recording if enabled and media is available
-      if (autoRecordEnabled && (cameraStream || audioStream) && !isRecording) {
-        startRecording();
-      }
-      
-      // Sync match state and timer
-      hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
-      hostActionAPI(eventName, password, 'updateTimerState', { 
-        timerRunning: true,
-        timerPaused: false,
-        timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
-        timerStartedAt: new Date().toISOString(),
-      }).catch(console.error);
-      
-      setActionStatus('Match started! Autonomous period.' + (autoRecordEnabled && (cameraStream || audioStream) ? ' Recording started.' : ''));
-    });
+    // Play countdown audio immediately with visual
+    playAudio('countdown');
     
-    // Use setInterval for visual countdown - this runs in parallel with audio
+    // Visual countdown updates every second, synced with the audio
     const countdownInterval = setInterval(async () => {
+      countdownIndex++;
       if (countdownIndex < countdownNumbers.length) {
         const currentNumber = countdownNumbers[countdownIndex];
         // Sync countdown to database for display and referee tablets
         hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: currentNumber }).catch(console.error);
-        countdownIndex++;
       } else {
-        // Visual countdown finished - clear interval
+        // Visual countdown finished (after showing 1) - clear interval
         clearInterval(countdownInterval);
-        // Note: Match doesn't start here - it starts when audio ends
+        
+        // After 321 countdown completes, play the start/bell sound and begin match
+        setTimeout(() => {
+          // Clear the countdown display
+          hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
+          
+          // Play the start match bell sound
+          playAudio('startmatch');
+          
+          // Start the match immediately after countdown
+          setMatchPhase('AUTONOMOUS');
+          setTimerRunning(true);
+          setTimerPaused(false);
+          waitingForSound.current = false;
+          
+          // Sync match state and timer
+          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
+          hostActionAPI(eventName, password, 'updateTimerState', { 
+            timerRunning: true,
+            timerPaused: false,
+            timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+            timerStartedAt: new Date().toISOString(),
+          }).catch(console.error);
+          
+          setActionStatus('Match started! Autonomous period.');
+        }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS); // Wait 1 second after "1" before starting
       }
     }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS);
   };
@@ -1356,6 +1358,57 @@ function HostPageContent() {
       const data = await fetchEventAPI(eventName);
       if (data) setEventData(data);
     }
+  };
+
+  // Full match reset - resets everything for a completely new match
+  // Note: Camera keeps running - we just hide the score overlay to reveal it
+  const resetMatch = async () => {
+    if (!confirm('Reset entire match? This will reset scores, teams, timer, and hide the results overlay. This cannot be undone.')) return;
+    
+    // Stop any running timer
+    handleStop();
+    
+    // Reset scores
+    await hostActionAPI(eventName, password, 'resetScores');
+    setRedScore(createDefaultScore());
+    setBlueScore(createDefaultScore());
+    
+    // Reset teams
+    setRedTeam1('');
+    setRedTeam2('');
+    setBlueTeam1('');
+    setBlueTeam2('');
+    await hostActionAPI(eventName, password, 'setTeams', {
+      redTeam1: '',
+      redTeam2: '',
+      blueTeam1: '',
+      blueTeam2: '',
+    });
+    
+    // Reset match state and timer - this will hide the results overlay on display
+    // The camera continues running underneath - we're just removing the overlay
+    setMatchPhase('NOT_STARTED');
+    setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
+    setTotalElapsed(0);
+    await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
+    await hostActionAPI(eventName, password, 'updateTimerState', { 
+      timerRunning: false,
+      timerPaused: false,
+      timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+    });
+    
+    // Clear any countdown
+    await hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null });
+    
+    // Hide the results overlay - camera is always underneath
+    setShowCameraOnDisplay(false);
+    await hostActionAPI(eventName, password, 'setShowCamera', { showCamera: false });
+    
+    // Refresh event data
+    const data = await fetchEventAPI(eventName);
+    if (data) setEventData(data);
+    
+    setActionStatus('Match reset! Camera view restored. Ready for new match.');
   };
 
   if (isLoading) {
@@ -1969,10 +2022,16 @@ function HostPageContent() {
           📊 History ({matchHistory.length})
         </button>
         <button
+          onClick={resetMatch}
+          className="bg-orange-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-orange-700"
+        >
+          🔄 Reset Match
+        </button>
+        <button
           onClick={resetScores}
           className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-red-700"
         >
-          🔄 Reset All Scores
+          🗑️ Reset Scores Only
         </button>
         <button
           onClick={() => window.location.href = '/'}

@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { DecodeScore, calculateTotalWithPenalties, calculateBasePoints } from '@/lib/supabase';
-import { EMOJI, COLORS, LAYOUT, motifToEmoji } from '@/lib/constants';
+import { DecodeScore, calculateTotalWithPenalties } from '@/lib/supabase';
+import { COLORS, LAYOUT } from '@/lib/constants';
 
 interface ScoreBarProps {
   redScore: DecodeScore;
@@ -15,17 +15,19 @@ interface ScoreBarProps {
   matchPhase: string;
   timeDisplay: string;
   countdownNumber?: number | null;
-  transitionMessage?: string | null; // Message to show during transition (e.g., "Drivers pick up your controllers" or "3", "2", "1")
+  transitionMessage?: string | null;
 }
 
 /**
- * ScoreBar component matching the live FTC Stream Scorer UI
- * Based on reference image measurements:
- * - Overlay height: 16.88% of container (131px at 776px baseline)
- * - Red panel: #790213
- * - Blue panel: #0A6CAF
- * - Side panels: ~33% width each
- * - Center panel: ~14.5% width
+ * ScoreBar component matching the official FTC Live Event Management System UI
+ * 
+ * Based on measured reference image (1326×131 px):
+ * - Left red column: 44.6% width (#830F12)
+ * - Center timer: 10.6% width (white #FFFFFF)
+ * - Right blue column: 44.7% width (#004172)
+ * - Team number boxes: 102×53 px (stacked pair)
+ * - Score circle: ~85px diameter
+ * - Status circles: 18px diameter, 24px spacing
  */
 export default function ScoreBar({
   redScore,
@@ -34,7 +36,7 @@ export default function ScoreBar({
   redTeam2,
   blueTeam1,
   blueTeam2,
-  motif,
+  motif: _motif, // Kept for interface compatibility, not displayed in official FTC style
   matchPhase,
   timeDisplay,
   countdownNumber,
@@ -43,115 +45,89 @@ export default function ScoreBar({
   const redTotal = calculateTotalWithPenalties(redScore, blueScore);
   const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
 
-  // Calculate breakdown values for red
-  const redClassifiedPts = (redScore.autoClassified + redScore.teleopClassified) * 3;
-  const redOverflowPts = redScore.autoOverflow + redScore.teleopOverflow + redScore.teleopDepot;
-  const redPatternPts = (redScore.autoPatternMatches + redScore.teleopPatternMatches) * 2;
-  const redLeavePts = (redScore.robot1Leave ? 3 : 0) + (redScore.robot2Leave ? 3 : 0);
-  const redBasePts = calculateBasePoints(redScore);
-  const redFoulPts = blueScore.minorFouls * 5 + blueScore.majorFouls * 15;
-
-  // Calculate breakdown values for blue
-  const blueClassifiedPts = (blueScore.autoClassified + blueScore.teleopClassified) * 3;
-  const blueOverflowPts = blueScore.autoOverflow + blueScore.teleopOverflow + blueScore.teleopDepot;
-  const bluePatternPts = (blueScore.autoPatternMatches + blueScore.teleopPatternMatches) * 2;
-  const blueLeavePts = (blueScore.robot1Leave ? 3 : 0) + (blueScore.robot2Leave ? 3 : 0);
-  const blueBasePts = calculateBasePoints(blueScore);
-  const blueFoulPts = redScore.minorFouls * 5 + redScore.majorFouls * 15;
-
-  // Get phase color matching live UI
-  const getPhaseColor = () => {
+  // Get status circle colors based on match phase
+  const getStatusColors = () => {
     switch (matchPhase) {
-      case 'ENDGAME':
+      case 'AUTONOMOUS':
+        return [COLORS.STATUS_GREEN, COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE];
+      case 'TELEOP':
+        return [COLORS.STATUS_GREEN, COLORS.STATUS_GREEN, COLORS.STATUS_PURPLE];
       case 'END_GAME':
-        return '#C86400'; // Dark orange
-      case 'FINISHED':
-        return '#C80000'; // Dark red
-      case 'UNDER_REVIEW':
-        return '#967800'; // Dark yellow
+        return [COLORS.STATUS_GREEN, COLORS.STATUS_GREEN, COLORS.STATUS_GREEN];
       default:
-        return '#007800'; // Dark green
+        return [COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE];
     }
   };
 
-  // Responsive overlay height: 16.88% of viewport height (131px at 776px baseline)
-  // Using clamp for responsive sizing with min/max bounds
-  const overlayStyle: React.CSSProperties = {
-    height: 'clamp(100px, 16.88vh, 150px)',
-    backgroundColor: COLORS.BLACK,
+  const statusColors = getStatusColors();
+
+  // Main container - aspect ratio matches official UI (1326×131)
+  const containerStyle: React.CSSProperties = {
+    width: '100%',
+    height: 'clamp(80px, 10vh, 131px)',
     display: 'flex',
     alignItems: 'stretch',
-    width: '100%',
+    backgroundColor: COLORS.BLACK,
+    fontFamily: 'Montserrat, "Roboto", "Helvetica Neue", Arial, sans-serif',
   };
 
   return (
-    <div style={overlayStyle}>
-      {/* Red Section - Left Panel (flexible width) */}
+    <div style={containerStyle}>
+      {/* LEFT RED COLUMN - 44.6% width */}
       <div 
-        className="flex items-center justify-end gap-[0.5vw] px-[1vw] py-[0.8vh] overflow-hidden"
         style={{ 
+          width: `${LAYOUT.LEFT_PANEL_WIDTH_PERCENT}%`,
           backgroundColor: COLORS.RED_PRIMARY,
-          flex: '1 1 0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          padding: '0 15px',
+          gap: '12px',
         }}
       >
-        {/* Team Box */}
-        <TeamBox 
-          label="RED" 
-          team1={redTeam1} 
-          team2={redTeam2} 
-          color={COLORS.RED_PRIMARY} 
-        />
-
-        {/* Foul Box */}
-        <InfoBox icon={EMOJI.FOUL} value={redFoulPts} color={COLORS.RED_PRIMARY} />
-
-        {/* Pattern Box */}
-        <InfoBox icon={EMOJI.PATTERN} value={redPatternPts} color={COLORS.RED_PRIMARY} />
-
-        {/* Leave + Base Stacked */}
-        <StackedInfoBox
-          topIcon={EMOJI.LEAVE}
-          topValue={redLeavePts}
-          bottomIcon={EMOJI.BASE}
-          bottomValue={redBasePts}
-          color={COLORS.RED_PRIMARY}
-        />
-
-        {/* Classified + Overflow Stacked */}
-        <StackedInfoBox
-          topIcon={EMOJI.CLASSIFIED}
-          topValue={redClassifiedPts}
-          bottomIcon={EMOJI.OVERFLOW}
-          bottomValue={redOverflowPts}
-          color={COLORS.RED_PRIMARY}
-        />
-
-        {/* Total Score */}
-        <TotalScoreBox score={redTotal} color={COLORS.RED_PRIMARY} />
+        {/* Stacked Team Number Boxes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <TeamNumberBox team={redTeam1} />
+          <TeamNumberBox team={redTeam2} />
+        </div>
+        
+        {/* Large Score Circle */}
+        <ScoreCircle score={redTotal} color={COLORS.RED_PRIMARY} />
       </div>
 
-      {/* Center Info Box - Timer/Phase/Motif (flexible width) */}
+      {/* CENTER TIMER COLUMN - 10.6% width */}
       <div 
-        className="flex flex-col items-center justify-center relative flex-shrink-0"
         style={{ 
+          width: `${LAYOUT.CENTER_PANEL_WIDTH_PERCENT}%`,
           backgroundColor: COLORS.WHITE,
-          width: 'clamp(100px, 15vw, 200px)',
-          borderLeft: `2px solid ${COLORS.BLACK}`,
-          borderRight: `2px solid ${COLORS.BLACK}`,
-          padding: '0.5vh 0.5vw',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          borderLeft: `2px solid ${COLORS.TEXT_BLACK}`,
+          borderRight: `2px solid ${COLORS.TEXT_BLACK}`,
         }}
       >
         {/* Countdown overlay */}
         {countdownNumber !== null && countdownNumber !== undefined && (
           <div 
-            className="absolute inset-0 flex items-center justify-center z-10"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+            style={{ 
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.98)',
+              zIndex: 10,
+            }}
           >
             <span 
-              className="font-bold text-red-600 animate-pulse"
               style={{ 
-                fontSize: 'clamp(48px, 8vh, 120px)',
-                fontFamily: 'Arial, sans-serif',
+                fontSize: 'clamp(48px, 6vh, 80px)',
+                fontWeight: 900,
+                color: COLORS.RED_PRIMARY,
+                fontFamily: 'Montserrat, Arial, sans-serif',
               }}
             >
               {countdownNumber}
@@ -162,272 +138,173 @@ export default function ScoreBar({
         {/* Transition message overlay */}
         {transitionMessage && matchPhase === 'TRANSITION' && (
           <div 
-            className="absolute inset-0 flex items-center justify-center z-10"
-            style={{ backgroundColor: 'rgba(255, 255, 0, 0.95)' }}
+            style={{ 
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255, 235, 59, 0.95)',
+              zIndex: 10,
+              padding: '4px',
+            }}
           >
             <span 
-              className="font-bold text-black text-center animate-pulse px-2"
               style={{ 
-                fontSize: transitionMessage.length <= 1 ? 'clamp(48px, 8vh, 120px)' : 'clamp(10px, 1.5vh, 16px)',
-                fontFamily: 'Arial, sans-serif',
+                fontSize: transitionMessage.length <= 1 ? 'clamp(48px, 6vh, 80px)' : 'clamp(8px, 1.2vh, 14px)',
+                fontWeight: 900,
+                color: COLORS.TEXT_BLACK,
+                textAlign: 'center',
+                fontFamily: 'Montserrat, Arial, sans-serif',
               }}
             >
               {transitionMessage}
             </span>
           </div>
         )}
-        
-        {/* Timer - 60% of overlay height */}
-        <span 
-          className="font-bold text-black leading-none"
+
+        {/* Robot Icon (small, above timer) */}
+        <div style={{ 
+          width: '24px', 
+          height: '36px', 
+          marginBottom: '2px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <svg viewBox="0 0 24 36" fill={COLORS.TEXT_BLACK} style={{ width: '100%', height: '100%' }}>
+            {/* Simple robot silhouette */}
+            <rect x="4" y="0" width="16" height="8" rx="2" />
+            <rect x="2" y="10" width="20" height="18" rx="2" />
+            <rect x="0" y="12" width="4" height="8" rx="1" />
+            <rect x="20" y="12" width="4" height="8" rx="1" />
+            <rect x="6" y="30" width="4" height="6" rx="1" />
+            <rect x="14" y="30" width="4" height="6" rx="1" />
+          </svg>
+        </div>
+
+        {/* Timer Display */}
+        <div 
           style={{ 
-            fontSize: 'clamp(28px, 4.5vh, 78px)',
-            fontFamily: 'Arial, sans-serif',
+            fontSize: 'clamp(28px, 4vh, 45px)',
+            fontWeight: 900,
+            color: COLORS.TEXT_BLACK,
+            lineHeight: 1,
+            letterSpacing: '-1px',
+            fontFamily: 'Montserrat, "Roboto Black", Arial, sans-serif',
           }}
         >
           {timeDisplay}
-        </span>
-        
-        {/* Phase */}
-        <span 
-          className="font-bold leading-tight"
-          style={{ 
-            color: getPhaseColor(),
-            fontSize: 'clamp(12px, 1.8vh, 24px)',
-            fontFamily: 'Arial, sans-serif',
-          }}
-        >
-          {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase.replace(/_/g, ' ')}
-        </span>
-        
-        {/* Motif with emoji */}
-        <span 
-          className="font-bold leading-tight"
-          style={{ 
-            fontSize: 'clamp(14px, 2vh, 24px)',
-            fontFamily: 'Arial, sans-serif',
-          }}
-        >
-          {motifToEmoji(motif)}
-        </span>
+        </div>
+
+        {/* Status Circles (3 small colored circles below timer) */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '6px', 
+          marginTop: '4px',
+        }}>
+          {statusColors.map((color, i) => (
+            <div 
+              key={i}
+              style={{ 
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                backgroundColor: color,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Blue Section - Right Panel (flexible width) */}
+      {/* RIGHT BLUE COLUMN - 44.7% width */}
       <div 
-        className="flex items-center justify-start gap-[0.5vw] px-[1vw] py-[0.8vh] overflow-hidden"
         style={{ 
+          width: `${LAYOUT.RIGHT_PANEL_WIDTH_PERCENT}%`,
           backgroundColor: COLORS.BLUE_PRIMARY,
-          flex: '1 1 0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: '0 15px',
+          gap: '12px',
         }}
       >
-        {/* Total Score */}
-        <TotalScoreBox score={blueTotal} color={COLORS.BLUE_PRIMARY} />
-
-        {/* Classified + Overflow Stacked */}
-        <StackedInfoBox
-          topIcon={EMOJI.CLASSIFIED}
-          topValue={blueClassifiedPts}
-          bottomIcon={EMOJI.OVERFLOW}
-          bottomValue={blueOverflowPts}
-          color={COLORS.BLUE_PRIMARY}
-        />
-
-        {/* Leave + Base Stacked */}
-        <StackedInfoBox
-          topIcon={EMOJI.LEAVE}
-          topValue={blueLeavePts}
-          bottomIcon={EMOJI.BASE}
-          bottomValue={blueBasePts}
-          color={COLORS.BLUE_PRIMARY}
-        />
-
-        {/* Pattern Box */}
-        <InfoBox icon={EMOJI.PATTERN} value={bluePatternPts} color={COLORS.BLUE_PRIMARY} />
-
-        {/* Foul Box */}
-        <InfoBox icon={EMOJI.FOUL} value={blueFoulPts} color={COLORS.BLUE_PRIMARY} />
-
-        {/* Team Box */}
-        <TeamBox 
-          label="BLUE" 
-          team1={blueTeam1} 
-          team2={blueTeam2} 
-          color={COLORS.BLUE_PRIMARY} 
-        />
+        {/* Large Score Circle */}
+        <ScoreCircle score={blueTotal} color={COLORS.BLUE_PRIMARY} />
+        
+        {/* Stacked Team Number Boxes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <TeamNumberBox team={blueTeam1} />
+          <TeamNumberBox team={blueTeam2} />
+        </div>
       </div>
     </div>
   );
 }
 
-// Team Box Component
-function TeamBox({ 
-  label, 
-  team1, 
-  team2, 
-  color 
-}: { 
-  label: string; 
-  team1: string; 
-  team2: string; 
-  color: string;
-}) {
-  const t1 = team1 || '----';
-  const t2 = team2 || '----';
+/**
+ * Team Number Box - White box with dark border containing team number
+ * Dimensions: 102×53 px in reference (scaled responsively)
+ */
+function TeamNumberBox({ team }: { team: string }) {
+  const displayTeam = team || '----';
   
   return (
     <div 
-      className="flex flex-col items-center justify-center flex-shrink-0"
       style={{ 
+        width: 'clamp(70px, 8vw, 102px)',
+        height: 'clamp(35px, 4vh, 53px)',
         backgroundColor: COLORS.WHITE,
-        border: `2px solid ${color}`,
-        borderRadius: '2px',
-        minWidth: 'clamp(40px, 5vw, 60px)',
-        maxWidth: '80px',
-        padding: 'clamp(2px, 0.5vh, 4px) clamp(3px, 0.5vw, 6px)',
+        border: `${LAYOUT.BOX_STROKE_WIDTH}px solid ${COLORS.TEXT_BLACK}`,
+        borderRadius: `${LAYOUT.BOX_CORNER_RADIUS}px`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
       }}
     >
       <span 
-        className="font-bold leading-tight"
         style={{ 
-          color: color,
-          fontSize: 'clamp(6px, 0.8vh, 12px)',
-          fontFamily: 'Arial, sans-serif',
+          fontSize: 'clamp(16px, 2.5vh, 32px)',
+          fontWeight: 700,
+          color: COLORS.TEXT_BLACK,
+          fontFamily: 'Montserrat, "Roboto", Arial, sans-serif',
         }}
       >
-        {label}
-      </span>
-      <div 
-        className="flex flex-col items-center text-black font-bold leading-tight text-center"
-        style={{ 
-          fontSize: 'clamp(8px, 1vh, 14px)',
-          fontFamily: 'Arial, sans-serif',
-        }}
-      >
-        <span>{t1}</span>
-        <span>{t2}</span>
-      </div>
-    </div>
-  );
-}
-
-// Info Box Component - Single value with icon
-function InfoBox({ icon, value, color }: { icon: string; value: number; color: string }) {
-  return (
-    <div 
-      className="flex flex-col items-center justify-center flex-shrink-0"
-      style={{ 
-        backgroundColor: COLORS.WHITE,
-        border: `2px solid ${color}`,
-        borderRadius: '2px',
-        minWidth: 'clamp(35px, 4vw, 50px)',
-        maxWidth: '70px',
-        padding: 'clamp(2px, 0.5vh, 4px)',
-      }}
-    >
-      <span style={{ fontSize: 'clamp(12px, 1.5vh, 24px)' }}>{icon}</span>
-      <span 
-        className="font-bold text-black leading-tight"
-        style={{ 
-          fontSize: 'clamp(10px, 1.2vh, 18px)',
-          fontFamily: 'Arial, sans-serif',
-        }}
-      >
-        {value}
+        {displayTeam}
       </span>
     </div>
   );
 }
 
-// Stacked Info Box Component - Two values vertically stacked
-function StackedInfoBox({ 
-  topIcon, 
-  topValue, 
-  bottomIcon, 
-  bottomValue, 
-  color 
-}: { 
-  topIcon: string; 
-  topValue: number; 
-  bottomIcon: string; 
-  bottomValue: number; 
-  color: string;
-}) {
+/**
+ * Large Score Circle - Circular display for alliance total score
+ * Diameter: ~85px in reference (scaled responsively)
+ */
+function ScoreCircle({ score, color }: { score: number; color: string }) {
+  // Slightly lighter/darker version for contrast
+  const circleColor = color;
+  
   return (
     <div 
-      className="flex flex-col flex-shrink-0"
       style={{ 
-        border: `2px solid ${color}`,
-        borderRadius: '2px',
-        minWidth: 'clamp(40px, 4.5vw, 55px)',
-        maxWidth: '70px',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Top Section */}
-      <div 
-        className="flex flex-col items-center justify-center"
-        style={{ 
-          backgroundColor: COLORS.WHITE,
-          padding: 'clamp(1px, 0.3vh, 3px) clamp(2px, 0.3vw, 4px)',
-        }}
-      >
-        <span style={{ fontSize: 'clamp(10px, 1.2vh, 20px)', lineHeight: 1 }}>{topIcon}</span>
-        <span 
-          className="font-bold text-black leading-none"
-          style={{ 
-            fontSize: 'clamp(8px, 1vh, 14px)',
-            fontFamily: 'Arial, sans-serif',
-          }}
-        >
-          {topValue}
-        </span>
-      </div>
-      
-      {/* Divider */}
-      <div style={{ height: '1px', backgroundColor: color }}></div>
-      
-      {/* Bottom Section */}
-      <div 
-        className="flex flex-col items-center justify-center"
-        style={{ 
-          backgroundColor: COLORS.WHITE,
-          padding: 'clamp(1px, 0.3vh, 3px) clamp(2px, 0.3vw, 4px)',
-        }}
-      >
-        <span style={{ fontSize: 'clamp(10px, 1.2vh, 20px)', lineHeight: 1 }}>{bottomIcon}</span>
-        <span 
-          className="font-bold text-black leading-none"
-          style={{ 
-            fontSize: 'clamp(8px, 1vh, 14px)',
-            fontFamily: 'Arial, sans-serif',
-          }}
-        >
-          {bottomValue}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// Total Score Box Component - Large score display
-function TotalScoreBox({ score, color }: { score: number; color: string }) {
-  return (
-    <div 
-      className="flex items-center justify-center flex-shrink-0"
-      style={{ 
-        backgroundColor: color,
+        width: 'clamp(55px, 6.5vw, 85px)',
+        height: 'clamp(55px, 6.5vw, 85px)',
+        borderRadius: '50%',
+        backgroundColor: circleColor,
         border: `3px solid ${COLORS.WHITE}`,
-        borderRadius: '2px',
-        minWidth: 'clamp(50px, 6vw, 70px)',
-        maxWidth: '100px',
-        padding: 'clamp(3px, 0.5vh, 6px) clamp(5px, 0.8vw, 10px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
       }}
     >
       <span 
-        className="font-bold text-white leading-none"
         style={{ 
-          fontSize: 'clamp(20px, 3vh, 48px)',
-          fontFamily: 'Arial, sans-serif',
+          fontSize: 'clamp(22px, 3.5vh, 42px)',
+          fontWeight: 900,
+          color: COLORS.WHITE,
+          fontFamily: 'Montserrat, "Roboto Black", Arial, sans-serif',
         }}
       >
         {score}
