@@ -87,18 +87,19 @@ export default function ScoreBar({
           justifyContent: 'space-between',
           padding: '0 10px',
           gap: '8px',
+          overflow: 'hidden',
         }}
       >
-        {/* Score Breakdown (compact) */}
+        {/* Score Breakdown (compact) - hidden on very small screens via flexShrink */}
         <ScoreBreakdownDisplay breakdown={redBreakdown} alliance="RED" />
         
-        {/* Stacked Team Number Boxes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {/* Stacked Team Number Boxes - flex shrink 0 to maintain size */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
           <TeamNumberBox team={redTeam1} />
           <TeamNumberBox team={redTeam2} />
         </div>
         
-        {/* Large Score Circle */}
+        {/* Large Score Circle - flex shrink 0 to maintain size */}
         <ScoreCircle score={redTotal} color={COLORS.RED_PRIMARY} />
       </div>
 
@@ -246,18 +247,19 @@ export default function ScoreBar({
           justifyContent: 'space-between',
           padding: '0 10px',
           gap: '8px',
+          overflow: 'hidden',
         }}
       >
-        {/* Large Score Circle */}
+        {/* Large Score Circle - flex shrink 0 to maintain size */}
         <ScoreCircle score={blueTotal} color={COLORS.BLUE_PRIMARY} />
         
-        {/* Stacked Team Number Boxes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {/* Stacked Team Number Boxes - flex shrink 0 to maintain size */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
           <TeamNumberBox team={blueTeam1} />
           <TeamNumberBox team={blueTeam2} />
         </div>
         
-        {/* Score Breakdown (compact) */}
+        {/* Score Breakdown (compact) - hidden on very small screens via flexShrink */}
         <ScoreBreakdownDisplay breakdown={blueBreakdown} alliance="BLUE" />
       </div>
     </div>
@@ -319,6 +321,7 @@ function ScoreCircle({ score, color }: { score: number; color: string }) {
         alignItems: 'center',
         justifyContent: 'center',
         boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+        flexShrink: 0,
       }}
     >
       <span 
@@ -338,6 +341,7 @@ function ScoreCircle({ score, color }: { score: number; color: string }) {
 /**
  * Score Breakdown Display - Compact display showing scoring breakdown
  * Shows: Leave, Park/Base, Classified, Overflow, Pattern, Depot, Fouls
+ * Hidden on very small screens to maintain layout integrity
  */
 function ScoreBreakdownDisplay({ 
   breakdown, 
@@ -374,7 +378,9 @@ function ScoreBreakdownDisplay({
         gap: '1px 4px',
         padding: '2px 4px',
         borderRadius: '4px',
-        backgroundColor: alliance === 'RED' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.2)',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        minWidth: '60px',
+        flexShrink: 1,
       }}
     >
       <span style={labelStyle}>🚗 Leave</span>
@@ -393,7 +399,7 @@ function ScoreBreakdownDisplay({
       <span style={valueStyle}>{breakdown.endgameBase}</span>
       
       <span style={labelStyle}>⚠ Foul</span>
-      <span style={{ ...valueStyle, color: breakdown.penaltyPoints > 0 ? '#4ade80' : COLORS.WHITE }}>
+      <span style={{ ...valueStyle, color: breakdown.penaltyPoints > 0 ? COLORS.PENALTY_BONUS : COLORS.WHITE }}>
         +{breakdown.penaltyPoints}
       </span>
     </div>
