@@ -1344,8 +1344,7 @@ function HostPageContent() {
     }
   };
 
-  // Reset scores
-  // Reset scores
+  // Reset scores for new match
   const resetScores = async () => {
     if (!confirm('Reset all scores for a new match? This cannot be undone.')) return;
     

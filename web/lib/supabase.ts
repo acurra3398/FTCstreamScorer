@@ -25,7 +25,9 @@ export interface EventData {
   id?: number;
   event_name: string;
   password_hash?: string;
-  password_plain?: string;  // Stored for admin viewing purposes
+  // NOTE: password_plain is stored for admin convenience to share with referees.
+  // This is intentional per user request, but be aware of security implications.
+  password_plain?: string;
   host_device_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -439,10 +441,11 @@ export async function createEvent(
   const passwordHash = await hashPassword(password);
   
   // Create default event data
+  // NOTE: Storing password_plain for admin convenience (per user request)
   const eventData: Partial<EventData> = {
     event_name: normalizedName,
     password_hash: passwordHash,
-    password_plain: password,  // Store plain password for admin viewing
+    password_plain: password,
     motif: 'PPG',
     match_state: 'NOT_STARTED',
     timer_running: false,
