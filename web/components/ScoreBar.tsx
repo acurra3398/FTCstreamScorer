@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { DecodeScore, calculateTotalWithPenalties } from '@/lib/supabase';
-import { COLORS, LAYOUT } from '@/lib/constants';
+import { DecodeScore, calculateTotalWithPenalties, calculateScoreBreakdown } from '@/lib/supabase';
+import { COLORS, LAYOUT, motifToEmoji } from '@/lib/constants';
 
 interface ScoreBarProps {
   redScore: DecodeScore;
@@ -36,7 +36,7 @@ export default function ScoreBar({
   redTeam2,
   blueTeam1,
   blueTeam2,
-  motif: _motif, // Kept for interface compatibility, not displayed in official FTC style
+  motif,
   matchPhase,
   timeDisplay,
   countdownNumber,
@@ -44,6 +44,10 @@ export default function ScoreBar({
 }: ScoreBarProps) {
   const redTotal = calculateTotalWithPenalties(redScore, blueScore);
   const blueTotal = calculateTotalWithPenalties(blueScore, redScore);
+  
+  // Calculate score breakdowns for display
+  const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
+  const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
 
   // Get status circle colors based on match phase
   const getStatusColors = () => {
@@ -80,11 +84,14 @@ export default function ScoreBar({
           backgroundColor: COLORS.RED_PRIMARY,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
-          padding: '0 15px',
-          gap: '12px',
+          justifyContent: 'space-between',
+          padding: '0 10px',
+          gap: '8px',
         }}
       >
+        {/* Score Breakdown (compact) */}
+        <ScoreBreakdownDisplay breakdown={redBreakdown} alliance="RED" />
+        
         {/* Stacked Team Number Boxes */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <TeamNumberBox team={redTeam1} />
@@ -215,6 +222,18 @@ export default function ScoreBar({
             />
           ))}
         </div>
+        
+        {/* Motif Display */}
+        {motif && (
+          <div style={{ 
+            marginTop: '2px',
+            fontSize: 'clamp(10px, 1.5vh, 16px)',
+            fontWeight: 700,
+            letterSpacing: '1px',
+          }}>
+            {motifToEmoji(motif)}
+          </div>
+        )}
       </div>
 
       {/* RIGHT BLUE COLUMN - 44.7% width */}
@@ -224,9 +243,9 @@ export default function ScoreBar({
           backgroundColor: COLORS.BLUE_PRIMARY,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          padding: '0 15px',
-          gap: '12px',
+          justifyContent: 'space-between',
+          padding: '0 10px',
+          gap: '8px',
         }}
       >
         {/* Large Score Circle */}
@@ -237,6 +256,9 @@ export default function ScoreBar({
           <TeamNumberBox team={blueTeam1} />
           <TeamNumberBox team={blueTeam2} />
         </div>
+        
+        {/* Score Breakdown (compact) */}
+        <ScoreBreakdownDisplay breakdown={blueBreakdown} alliance="BLUE" />
       </div>
     </div>
   );
@@ -308,6 +330,71 @@ function ScoreCircle({ score, color }: { score: number; color: string }) {
         }}
       >
         {score}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Score Breakdown Display - Compact display showing scoring breakdown
+ * Shows: Leave, Park/Base, Classified, Overflow, Pattern, Depot, Fouls
+ */
+function ScoreBreakdownDisplay({ 
+  breakdown, 
+  alliance 
+}: { 
+  breakdown: ReturnType<typeof calculateScoreBreakdown>;
+  alliance: 'RED' | 'BLUE';
+}) {
+  // Compact style - show key categories in a small grid
+  const fontSize = 'clamp(8px, 1vh, 11px)';
+  const labelStyle: React.CSSProperties = {
+    fontSize,
+    color: COLORS.WHITE,
+    opacity: 0.9,
+    whiteSpace: 'nowrap' as const,
+  };
+  const valueStyle: React.CSSProperties = {
+    fontSize,
+    fontWeight: 700,
+    color: COLORS.WHITE,
+    textAlign: 'right' as const,
+  };
+  
+  // Combine related scores for compact display
+  const classified = breakdown.autoClassified + breakdown.teleopClassified;
+  const overflow = breakdown.autoOverflow + breakdown.teleopOverflow + breakdown.teleopDepot;
+  const pattern = breakdown.autoPattern + breakdown.teleopPattern;
+  
+  return (
+    <div 
+      style={{ 
+        display: 'grid',
+        gridTemplateColumns: 'auto auto',
+        gap: '1px 4px',
+        padding: '2px 4px',
+        borderRadius: '4px',
+        backgroundColor: alliance === 'RED' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.2)',
+      }}
+    >
+      <span style={labelStyle}>🚗 Leave</span>
+      <span style={valueStyle}>{breakdown.autoLeave}</span>
+      
+      <span style={labelStyle}>🟢 Class</span>
+      <span style={valueStyle}>{classified}</span>
+      
+      <span style={labelStyle}>➕ Over</span>
+      <span style={valueStyle}>{overflow}</span>
+      
+      <span style={labelStyle}>✔ Patt</span>
+      <span style={valueStyle}>{pattern}</span>
+      
+      <span style={labelStyle}>🏠 Park</span>
+      <span style={valueStyle}>{breakdown.endgameBase}</span>
+      
+      <span style={labelStyle}>⚠ Foul</span>
+      <span style={{ ...valueStyle, color: breakdown.penaltyPoints > 0 ? '#4ade80' : COLORS.WHITE }}>
+        +{breakdown.penaltyPoints}
       </span>
     </div>
   );
