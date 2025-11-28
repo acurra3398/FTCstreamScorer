@@ -33,6 +33,9 @@ export const COLORS = {
   // Accent colors
   YELLOW: 'rgb(255, 235, 59)',
   GOLD: 'gold',
+  
+  // Score-related colors
+  PENALTY_BONUS: '#4ade80',    // Green for points from opponent fouls
 };
 
 // Layout constants based on official FTC reference image (1326×131 baseline)
