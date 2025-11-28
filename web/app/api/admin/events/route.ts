@@ -8,6 +8,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 interface AdminEventDetails {
   event_name: string;
   password_hash: string;
+  password_plain: string;
   match_state: string;
   created_at: string;
   updated_at: string;
@@ -18,6 +19,8 @@ interface AdminEventDetails {
   timer_running: boolean;
   timer_paused: boolean;
   timer_seconds_remaining: number;
+  red_scores_submitted: boolean;
+  blue_scores_submitted: boolean;
 }
 
 // POST /api/admin/events - Get all events with details (admin only)
@@ -57,10 +60,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all events with details for admin view
+    // Get all events with details for admin view (including plain password and submission status)
     const { data: events, error } = await client
       .from('events')
-      .select('event_name, password_hash, match_state, created_at, updated_at, red_team1, red_team2, blue_team1, blue_team2, timer_running, timer_paused, timer_seconds_remaining')
+      .select('event_name, password_hash, password_plain, match_state, created_at, updated_at, red_team1, red_team2, blue_team1, blue_team2, timer_running, timer_paused, timer_seconds_remaining, red_scores_submitted, blue_scores_submitted')
       .order('created_at', { ascending: false });
 
     if (error) {

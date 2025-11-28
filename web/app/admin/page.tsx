@@ -9,6 +9,7 @@ import { COLORS } from '@/lib/constants';
 interface AdminEventDetails {
   event_name: string;
   password_hash: string;
+  password_plain: string;
   match_state: string;
   created_at: string;
   updated_at: string;
@@ -19,6 +20,8 @@ interface AdminEventDetails {
   timer_running: boolean;
   timer_paused: boolean;
   timer_seconds_remaining: number;
+  red_scores_submitted: boolean;
+  blue_scores_submitted: boolean;
 }
 
 // API helper to get all events (admin only)
@@ -332,15 +335,28 @@ function AdminPageContent() {
                       </div>
                     </div>
                     
-                    {/* Password and Teams Info */}
+                    {/* Password, Referee Status, and Teams Info */}
                     <div className="flex items-center gap-6">
                       {/* Password */}
                       <div className="text-right">
-                        <div className="text-xs text-gray-500">Password Hash</div>
+                        <div className="text-xs text-gray-500">Event Password</div>
                         <div className="font-mono text-sm">
                           {showPasswords 
-                            ? (event.details?.password_hash?.substring(0, 20) + '...' || 'N/A')
+                            ? (event.details?.password_plain || 'N/A')
                             : '••••••••••'}
+                        </div>
+                      </div>
+                      
+                      {/* Referee Submission Status */}
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Referee Scores</div>
+                        <div className="flex gap-2 text-sm">
+                          <span className={`px-2 py-0.5 rounded ${event.details?.red_scores_submitted ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+                            {event.details?.red_scores_submitted ? '✅ RED' : '⏳ RED'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded ${event.details?.blue_scores_submitted ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-700'}`}>
+                            {event.details?.blue_scores_submitted ? '✅ BLUE' : '⏳ BLUE'}
+                          </span>
                         </div>
                       </div>
                       

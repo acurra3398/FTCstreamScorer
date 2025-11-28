@@ -1086,12 +1086,12 @@ function HostPageContent() {
       
       if (remaining <= 0 && !waitingForSound.current) {
         waitingForSound.current = true;
-        playAudio('endauto', () => {
+        // Play only the transition bells sound (not endauto)
+        playAudio('transition', () => {
           setMatchPhase('TRANSITION');
           setTotalElapsed(0);
           setSecondsRemaining(MATCH_TIMING.TRANSITION_DURATION);
           waitingForSound.current = false;
-          playAudio('transition');
           hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' }).catch(console.error);
           hostActionAPI(eventName, password, 'updateTimerState', { 
             timerSecondsRemaining: MATCH_TIMING.TRANSITION_DURATION,
@@ -1345,10 +1345,11 @@ function HostPageContent() {
   };
 
   // Reset scores
+  // Reset scores
   const resetScores = async () => {
     if (!confirm('Reset all scores for a new match? This cannot be undone.')) return;
     
-    handleStop();
+    await handleStop();
     
     const result = await hostActionAPI(eventName, password, 'resetScores');
     setActionStatus(result.message);
@@ -1366,7 +1367,7 @@ function HostPageContent() {
     if (!confirm('Reset entire match? This will reset scores, teams, timer, and hide the results overlay. This cannot be undone.')) return;
     
     // Stop any running timer
-    handleStop();
+    await handleStop();
     
     // Reset scores
     await hostActionAPI(eventName, password, 'resetScores');

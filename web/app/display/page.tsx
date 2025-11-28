@@ -199,13 +199,11 @@ function DisplayPageContent() {
     if (currentState !== previousState) {
       // Play sound effects based on state transitions
       if (currentState === 'AUTONOMOUS' && previousState === 'NOT_STARTED') {
-        // Match starting - countdown sound is played during countdown, not here
-        // The countdown sound is triggered when countdown_number is set
+        // Match starting - play the start match bell sound
+        playAudio('startmatch');
       } else if (currentState === 'TRANSITION' && previousState === 'AUTONOMOUS') {
-        // End of autonomous
-        playAudio('endauto');
-        // Transition sound plays after endauto
-        setTimeout(() => playAudio('transition'), 500);
+        // End of autonomous - play only the transition bells sound
+        playAudio('transition');
       } else if (currentState === 'TELEOP' && previousState === 'TRANSITION') {
         // Teleop starting - play the start match bell sound
         playAudio('startmatch');

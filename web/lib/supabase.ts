@@ -25,6 +25,7 @@ export interface EventData {
   id?: number;
   event_name: string;
   password_hash?: string;
+  password_plain?: string;  // Stored for admin viewing purposes
   host_device_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -441,6 +442,7 @@ export async function createEvent(
   const eventData: Partial<EventData> = {
     event_name: normalizedName,
     password_hash: passwordHash,
+    password_plain: password,  // Store plain password for admin viewing
     motif: 'PPG',
     match_state: 'NOT_STARTED',
     timer_running: false,
