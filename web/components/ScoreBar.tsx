@@ -48,22 +48,6 @@ export default function ScoreBar({
   const redBreakdown = calculateScoreBreakdown(redScore, blueScore);
   const blueBreakdown = calculateScoreBreakdown(blueScore, redScore);
 
-  // Get status circle colors based on match phase
-  const getStatusColors = () => {
-    switch (matchPhase) {
-      case 'AUTONOMOUS':
-        return [COLORS.STATUS_GREEN, COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE];
-      case 'TELEOP':
-        return [COLORS.STATUS_GREEN, COLORS.STATUS_GREEN, COLORS.STATUS_PURPLE];
-      case 'END_GAME':
-        return [COLORS.STATUS_GREEN, COLORS.STATUS_GREEN, COLORS.STATUS_GREEN];
-      default:
-        return [COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE, COLORS.STATUS_PURPLE];
-    }
-  };
-
-  const statusColors = getStatusColors();
-
   // Main container - aspect ratio matches official UI (1326×131)
   const containerStyle: React.CSSProperties = {
     width: '100%',
@@ -123,18 +107,22 @@ export default function ScoreBar({
               position: 'absolute',
               inset: 0,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: 'rgba(255, 255, 255, 0.98)',
               zIndex: 10,
             }}
           >
+            {/* Phase-specific Icon during countdown - positioned close to countdown number */}
+            <PhaseIcon matchPhase={matchPhase} />
             <span 
               style={{ 
                 fontSize: 'clamp(48px, 6vh, 80px)',
                 fontWeight: 900,
                 color: COLORS.RED_PRIMARY,
                 fontFamily: 'Montserrat, Arial, sans-serif',
+                marginTop: '2px',
               }}
             >
               {countdownNumber}
@@ -142,8 +130,10 @@ export default function ScoreBar({
           </div>
         )}
 
-        {/* Phase-specific Icon (above timer) */}
-        <PhaseIcon matchPhase={matchPhase} />
+        {/* Phase-specific Icon (above timer) - only show when no countdown */}
+        {(countdownNumber === null || countdownNumber === undefined) && (
+          <PhaseIcon matchPhase={matchPhase} />
+        )}
 
         {/* Timer Display */}
         <div 
@@ -158,30 +148,11 @@ export default function ScoreBar({
         >
           {timeDisplay}
         </div>
-
-        {/* Status Circles (3 small colored circles below timer) */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '6px', 
-          marginTop: '4px',
-        }}>
-          {statusColors.map((color, i) => (
-            <div 
-              key={i}
-              style={{ 
-                width: '14px',
-                height: '14px',
-                borderRadius: '50%',
-                backgroundColor: color,
-              }}
-            />
-          ))}
-        </div>
         
-        {/* Motif Display */}
+        {/* Motif Display - shows the pattern circles (PPG, PGP, GPP) */}
         {motif && (
           <div style={{ 
-            marginTop: '2px',
+            marginTop: '4px',
             fontSize: 'clamp(10px, 1.5vh, 16px)',
             fontWeight: 700,
             letterSpacing: '1px',
@@ -362,8 +333,8 @@ function ScoreBreakdownDisplay({
   alliance: 'RED' | 'BLUE';
 }) {
   // Larger font size for better visibility
-  const fontSize = 'clamp(10px, 1.3vh, 14px)';
-  const valueSize = 'clamp(12px, 1.5vh, 16px)';
+  const fontSize = 'clamp(12px, 1.6vh, 18px)';
+  const valueSize = 'clamp(16px, 2vh, 22px)';
   
   // Combine related scores for display
   const classified = breakdown.autoClassified + breakdown.teleopClassified;
@@ -376,7 +347,7 @@ function ScoreBreakdownDisplay({
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '2px 4px',
+      padding: '2px 6px',
     }}>
       <span style={{ fontSize: valueSize, fontWeight: 700, color: highlight ? COLORS.PENALTY_BONUS : COLORS.WHITE }}>
         {highlight ? '+' : ''}{value}
@@ -392,12 +363,12 @@ function ScoreBreakdownDisplay({
         flexWrap: 'wrap',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: '4px 8px',
-        padding: '4px 8px',
+        gap: '4px 12px',
+        padding: '4px 12px',
         borderRadius: '6px',
         backgroundColor: 'rgba(0,0,0,0.15)',
         flex: '1 1 auto',
-        maxWidth: 'clamp(120px, 20vw, 200px)',
+        maxWidth: 'clamp(150px, 25vw, 280px)',
       }}
     >
       <ScoreItem icon="🚗" value={breakdown.autoLeave} />

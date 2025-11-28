@@ -204,11 +204,27 @@ function ScoringPageContent() {
             setBlueScore(extractBlueScore(data));
             setScoresSubmitted(false);
           } else {
-            // Only update the alliance we're NOT scoring (opponent's score)
+            // Update opponent's score always
+            // Also check if our own score has been reset (all zeros) and sync if needed
+            const serverRedScore = extractRedScore(data);
+            const serverBlueScore = extractBlueScore(data);
+            
             if (alliance === 'RED') {
-              setBlueScore(extractBlueScore(data));
+              setBlueScore(serverBlueScore);
+              // Check if scores were reset on server - sync our alliance if reset
+              const serverRedTotal = serverRedScore.autoClassified + serverRedScore.autoOverflow + 
+                serverRedScore.teleopClassified + serverRedScore.teleopOverflow + serverRedScore.teleopDepot;
+              if (serverRedTotal === 0 && !serverRedScore.robot1Leave && !serverRedScore.robot2Leave) {
+                setRedScore(serverRedScore);
+              }
             } else {
-              setRedScore(extractRedScore(data));
+              setRedScore(serverRedScore);
+              // Check if scores were reset on server - sync our alliance if reset
+              const serverBlueTotal = serverBlueScore.autoClassified + serverBlueScore.autoOverflow + 
+                serverBlueScore.teleopClassified + serverBlueScore.teleopOverflow + serverBlueScore.teleopDepot;
+              if (serverBlueTotal === 0 && !serverBlueScore.robot1Leave && !serverBlueScore.robot2Leave) {
+                setBlueScore(serverBlueScore);
+              }
             }
           }
           

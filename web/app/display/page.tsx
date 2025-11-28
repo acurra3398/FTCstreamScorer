@@ -206,6 +206,9 @@ function DisplayPageContent() {
         playAudio('endauto');
         // Transition sound plays after endauto
         setTimeout(() => playAudio('transition'), 500);
+      } else if (currentState === 'TELEOP' && previousState === 'TRANSITION') {
+        // Teleop starting - play the start match bell sound
+        playAudio('startmatch');
       } else if (currentState === 'END_GAME' && previousState === 'TELEOP') {
         // End game warning (30 seconds remaining)
         playAudio('endgame');
@@ -223,7 +226,7 @@ function DisplayPageContent() {
     }
   }, [eventData?.match_state, playAudio]);
   
-  // Play countdown sound when countdown number is set
+  // Play countdown sound when countdown number is set (pre-match 3-2-1)
   useEffect(() => {
     if (countdownDisplay !== null && countdownDisplay > 0) {
       // Only play countdown sound on the first number (e.g., 3)
@@ -232,6 +235,21 @@ function DisplayPageContent() {
       }
     }
   }, [countdownDisplay, playAudio]);
+  
+  // Play countdown sound during transition (3-2-1 into TeleOp)
+  // Track the previous transition message to detect when countdown starts
+  const previousTransitionMessageRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentMessage = eventData?.transition_message;
+    const previousMessage = previousTransitionMessageRef.current;
+    
+    // Play countdown sound when transition_message changes to "3" (start of countdown)
+    if (currentMessage === '3' && previousMessage !== '3') {
+      playAudio('countdown');
+    }
+    
+    previousTransitionMessageRef.current = currentMessage ?? null;
+  }, [eventData?.transition_message, playAudio]);
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
