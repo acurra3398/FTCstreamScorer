@@ -1590,22 +1590,6 @@ function HostPageContent() {
             </div>
           )}
           
-          {/* Show Camera on Display button - only show after scores are released */}
-          {matchPhase === 'SCORES_RELEASED' && (
-            <div className="mt-4 flex justify-center">
-              <button
-                onClick={handleToggleCameraOnDisplay}
-                className={`px-6 py-3 rounded-lg font-bold text-lg transition-colors ${
-                  showCameraOnDisplay 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                {showCameraOnDisplay ? '📊 Show Scores on Display' : '📹 Show Camera on Display'}
-              </button>
-            </div>
-          )}
-          
           {/* Match Timeline */}
           <div className="mt-4 text-sm text-gray-600 text-center">
             <span>AUTO (0:30)</span>
@@ -1674,7 +1658,13 @@ function HostPageContent() {
                 const randomMotif = VALID_MOTIFS[Math.floor(Math.random() * VALID_MOTIFS.length)] as MotifType;
                 setMotif(randomMotif);
               }}
-              className="px-6 py-3 rounded font-bold text-lg transition-colors bg-yellow-500 hover:bg-yellow-600 text-white"
+              disabled={timerRunning}
+              className={`px-6 py-3 rounded font-bold text-lg transition-colors ${
+                timerRunning 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                  : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+              }`}
+              title={timerRunning ? 'Cannot randomize while match is in progress' : 'Randomize motif pattern'}
             >
               🎲 Randomize
             </button>
@@ -2009,12 +1999,6 @@ function HostPageContent() {
 
       {/* Action Buttons */}
       <div className="sticky bottom-0 bg-gray-800 p-4 flex gap-4 justify-center flex-wrap">
-        <button
-          onClick={handleRecordMatch}
-          className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-purple-700"
-        >
-          📝 Record Match #{matchHistory.length + 1}
-        </button>
         <button
           onClick={() => setShowHistory(true)}
           className="bg-gray-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-gray-700"

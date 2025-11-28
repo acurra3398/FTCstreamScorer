@@ -204,11 +204,42 @@ function ScoringPageContent() {
             setBlueScore(extractBlueScore(data));
             setScoresSubmitted(false);
           } else {
-            // Only update the alliance we're NOT scoring (opponent's score)
+            // Update opponent's score always
+            // Also check if our own score has been reset (all zeros) and sync if needed
+            const serverRedScore = extractRedScore(data);
+            const serverBlueScore = extractBlueScore(data);
+            
+            // Helper function to detect if a score has been reset to default values
+            const isScoreReset = (score: DecodeScore): boolean => {
+              return (
+                score.autoClassified === 0 &&
+                score.autoOverflow === 0 &&
+                score.autoPatternMatches === 0 &&
+                score.teleopClassified === 0 &&
+                score.teleopOverflow === 0 &&
+                score.teleopDepot === 0 &&
+                score.teleopPatternMatches === 0 &&
+                score.majorFouls === 0 &&
+                score.minorFouls === 0 &&
+                !score.robot1Leave &&
+                !score.robot2Leave &&
+                score.robot1Base === 'NOT_IN_BASE' &&
+                score.robot2Base === 'NOT_IN_BASE'
+              );
+            };
+            
             if (alliance === 'RED') {
-              setBlueScore(extractBlueScore(data));
+              setBlueScore(serverBlueScore);
+              // Check if scores were reset on server - sync our alliance if reset
+              if (isScoreReset(serverRedScore)) {
+                setRedScore(serverRedScore);
+              }
             } else {
-              setRedScore(extractRedScore(data));
+              setRedScore(serverRedScore);
+              // Check if scores were reset on server - sync our alliance if reset
+              if (isScoreReset(serverBlueScore)) {
+                setBlueScore(serverBlueScore);
+              }
             }
           }
           
