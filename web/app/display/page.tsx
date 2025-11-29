@@ -15,7 +15,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
+import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES, MATCH_TIMING } from '@/lib/constants';
 
 // Audio service hook for managing match sounds on display page
 function useDisplayAudioService() {
@@ -153,14 +153,20 @@ function DisplayPageContent() {
   // Track previous countdown number for playing countdown audio
   const previousCountdownRef = useRef<number | null>(null);
   
-  // Track previous transition message for playing transition countdown audio
-  const previousTransitionMessageRef = useRef<string | null>(null);
+  // Track last played transition countdown second to sync audio with visual timer
+  const lastPlayedTransitionCountdownRef = useRef<number | null>(null);
   
   // Override to show camera after scores released
   const [showCameraOverride, setShowCameraOverride] = useState(false);
   
   // Audio service for playing sound effects
   const { playAudio } = useDisplayAudioService();
+  
+  // Ref for playAudio to use in interval callbacks
+  const playAudioRef = useRef(playAudio);
+  useEffect(() => {
+    playAudioRef.current = playAudio;
+  }, [playAudio]);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,18 +187,42 @@ function DisplayPageContent() {
   
   // Local timer update effect - recalculates every 100ms for smooth display
   // This ensures the timer updates even between server polls
+  // Uses refs to always have access to the latest eventData without recreating the interval
+  const eventDataRef = useRef(eventData);
+  
+  // Keep the ref in sync with the latest eventData
+  useEffect(() => {
+    eventDataRef.current = eventData;
+  }, [eventData]);
+  
   useEffect(() => {
     if (!eventData || !eventData.timer_running || eventData.timer_paused) {
       return;
     }
     
     const localTimer = setInterval(() => {
-      const seconds = calculatePreciseTimerSeconds(eventData);
-      setTimerDisplay(formatTimeDisplay(seconds));
+      const currentEventData = eventDataRef.current;
+      if (currentEventData && currentEventData.timer_running && !currentEventData.timer_paused) {
+        const seconds = calculatePreciseTimerSeconds(currentEventData);
+        setTimerDisplay(formatTimeDisplay(seconds));
+        
+        // During TRANSITION, play countdown audio when timer shows the countdown start value
+        // This ensures the audio is perfectly synced with the visual timer display
+        if (currentEventData.match_state === 'TRANSITION') {
+          const countdownStart = MATCH_TIMING.TRANSITION_COUNTDOWN_START;
+          if (seconds === countdownStart && lastPlayedTransitionCountdownRef.current !== countdownStart) {
+            playAudioRef.current('countdown');
+            lastPlayedTransitionCountdownRef.current = countdownStart;
+          }
+        } else {
+          // Reset the ref when not in transition
+          lastPlayedTransitionCountdownRef.current = null;
+        }
+      }
     }, 100);
     
     return () => clearInterval(localTimer);
-  }, [eventData]);
+  }, [eventData?.timer_running, eventData?.timer_paused]);
   
   // Track match state changes and play appropriate sound effects
   // All sounds are played on the display page to ensure audio comes through display device
@@ -253,21 +283,6 @@ function DisplayPageContent() {
     
     previousCountdownRef.current = currentCountdown;
   }, [eventData?.countdown_number, playAudio]);
-  
-  // Track transition message changes for transition countdown audio
-  useEffect(() => {
-    if (!eventData) return;
-    
-    const currentMessage = eventData.transition_message ?? null;
-    const previousMessage = previousTransitionMessageRef.current;
-    
-    // Play countdown audio when transition countdown starts (message becomes "3")
-    if (currentMessage === '3' && previousMessage !== '3') {
-      playAudio('countdown');
-    }
-    
-    previousTransitionMessageRef.current = currentMessage;
-  }, [eventData?.transition_message, playAudio]);
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
