@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS events (
     id BIGSERIAL PRIMARY KEY,
     event_name TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    password_plain TEXT DEFAULT '',  -- Stored for admin convenience to share with referees
     host_device_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     
@@ -87,6 +88,9 @@ CREATE TABLE IF NOT EXISTS events (
     
     -- Audio ICE candidates from display
     audio_ice_candidates_display TEXT DEFAULT '[]',
+    
+    -- Show camera override (for displaying camera after results are released)
+    show_camera_override BOOLEAN DEFAULT FALSE,
     
     -- Timestamps
     updated_at TIMESTAMPTZ DEFAULT NOW()
