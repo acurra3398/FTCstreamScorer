@@ -1085,18 +1085,16 @@ function HostPageContent() {
       }).catch(console.error);
       
       if (remaining <= 0 && !waitingForSound.current) {
-        waitingForSound.current = true;
+        // Transition immediately - don't wait for sound to finish
         // Play only the transition bells sound (not endauto)
-        playAudio('transition', () => {
-          setMatchPhase('TRANSITION');
-          setTotalElapsed(0);
-          setSecondsRemaining(MATCH_TIMING.TRANSITION_DURATION);
-          waitingForSound.current = false;
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' }).catch(console.error);
-          hostActionAPI(eventName, password, 'updateTimerState', { 
-            timerSecondsRemaining: MATCH_TIMING.TRANSITION_DURATION,
-          }).catch(console.error);
-        });
+        playAudio('transition');
+        setMatchPhase('TRANSITION');
+        setTotalElapsed(0);
+        setSecondsRemaining(MATCH_TIMING.TRANSITION_DURATION);
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'TRANSITION' }).catch(console.error);
+        hostActionAPI(eventName, password, 'updateTimerState', { 
+          timerSecondsRemaining: MATCH_TIMING.TRANSITION_DURATION,
+        }).catch(console.error);
       }
     } else if (matchPhase === 'TRANSITION') {
       const remaining = MATCH_TIMING.TRANSITION_DURATION - totalElapsed - 1;
@@ -1598,7 +1596,7 @@ function HostPageContent() {
             <span className="mx-2">→</span>
             <span>TELEOP (2:00)</span>
             <span className="mx-2">→</span>
-            <span>ENDGAME (last 0:30)</span>
+            <span>ENDGAME (last 0:20)</span>
           </div>
         </div>
         

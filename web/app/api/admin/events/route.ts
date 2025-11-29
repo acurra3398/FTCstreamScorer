@@ -34,7 +34,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
+    
     const { adminPassword } = body;
 
     if (!adminPassword) {
@@ -69,7 +78,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error fetching events:', error);
       return NextResponse.json(
-        { success: false, message: 'Failed to fetch events' },
+        { success: false, message: `Failed to fetch events from database: ${error.message || 'Unknown database error'}` },
         { status: 500 }
       );
     }
@@ -85,8 +94,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in admin events API:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, message: 'Failed to fetch events' },
+      { success: false, message: `Failed to fetch events: ${errorMessage}` },
       { status: 500 }
     );
   }
