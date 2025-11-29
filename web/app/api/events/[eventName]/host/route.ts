@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient, hashPasswordServer } from '@/lib/supabase-server';
-import { VALID_MATCH_STATES, VALID_MOTIFS } from '@/lib/constants';
+import { VALID_MATCH_STATES, VALID_MOTIFS, MATCH_TIMING } from '@/lib/constants';
 import type { MatchState, MotifType } from '@/lib/supabase';
 
 // PATCH /api/events/[eventName]/host - Host controls (requires password)
@@ -190,7 +190,7 @@ export async function PATCH(
           match_state: 'NOT_STARTED',
           timer_running: false,
           timer_paused: false,
-          timer_seconds_remaining: 30,
+          timer_seconds_remaining: MATCH_TIMING.INITIAL_DISPLAY_TIME,
           timer_started_at: null,
           timer_paused_at: null,
           timer_last_sync: new Date().toISOString(),

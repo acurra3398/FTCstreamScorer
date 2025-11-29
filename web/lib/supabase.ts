@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { MATCH_TIMING } from './constants';
 
 // Types for DECODE scoring (2025-2026 FTC season)
 export type MotifType = 'PPG' | 'PGP' | 'GPP';
@@ -450,7 +451,7 @@ export async function createEvent(
     match_state: 'NOT_STARTED',
     timer_running: false,
     timer_paused: false,
-    timer_seconds_remaining: 30,
+    timer_seconds_remaining: MATCH_TIMING.INITIAL_DISPLAY_TIME,
     livestream_url: '',
     red_team1: '',
     red_team2: '',

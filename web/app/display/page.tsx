@@ -150,6 +150,12 @@ function DisplayPageContent() {
   // Track previous match state for triggering sound effects
   const previousMatchStateRef = useRef<MatchState | null>(null);
   
+  // Track previous countdown number for playing countdown audio
+  const previousCountdownRef = useRef<number | null>(null);
+  
+  // Track previous transition message for playing transition countdown audio
+  const previousTransitionMessageRef = useRef<string | null>(null);
+  
   // Override to show camera after scores released
   const [showCameraOverride, setShowCameraOverride] = useState(false);
   
@@ -189,6 +195,7 @@ function DisplayPageContent() {
   }, [eventData]);
   
   // Track match state changes and play appropriate sound effects
+  // All sounds are played on the display page to ensure audio comes through display device
   useEffect(() => {
     if (!eventData) return;
     
@@ -196,23 +203,71 @@ function DisplayPageContent() {
     const previousState = previousMatchStateRef.current;
     
     // Only trigger sounds on state change
-    // Note: Sounds are now primarily played by the host page to avoid duplicate playback
-    // The display page only plays sounds that the host doesn't play (like results)
-    if (currentState !== previousState) {
-      // Reset camera override when match state changes back to NOT_STARTED
-      if (currentState === 'NOT_STARTED') {
-        setShowCameraOverride(false);
+    if (currentState !== previousState && previousState !== null) {
+      // Play sounds based on state transitions
+      switch (currentState) {
+        case 'AUTONOMOUS':
+          // Match started - play start match bell
+          playAudio('startmatch');
+          break;
+        case 'TRANSITION':
+          // Auto ended - play transition bells
+          playAudio('transition');
+          break;
+        case 'TELEOP':
+          // Teleop started after transition - play start match bell
+          playAudio('startmatch');
+          break;
+        case 'END_GAME':
+          // End game started (20 seconds remaining) - play endgame warning
+          playAudio('endgame');
+          break;
+        case 'FINISHED':
+          // Match ended - play end match sound
+          playAudio('endmatch');
+          break;
+        case 'NOT_STARTED':
+          // Reset camera override when match state changes back to NOT_STARTED
+          setShowCameraOverride(false);
+          break;
       }
       
       previousMatchStateRef.current = currentState;
+    } else if (previousState === null) {
+      // First load - just store the current state without playing sounds
+      previousMatchStateRef.current = currentState;
     }
-  }, [eventData?.match_state]);
+  }, [eventData?.match_state, playAudio]);
   
-  // Pre-match countdown is handled by host page audio
-  // Display just shows the countdown number visually
+  // Track countdown number changes for pre-match countdown audio
+  useEffect(() => {
+    if (!eventData) return;
+    
+    const currentCountdown = eventData.countdown_number ?? null;
+    const previousCountdown = previousCountdownRef.current;
+    
+    // Play countdown audio when countdown starts (first number appears)
+    if (currentCountdown === 3 && previousCountdown !== 3) {
+      playAudio('countdown');
+    }
+    
+    previousCountdownRef.current = currentCountdown;
+  }, [eventData?.countdown_number, playAudio]);
   
-  // Transition countdown is handled by host page audio
-  // Display just shows the transition message visually
+  // Track transition message changes for transition countdown audio
+  useEffect(() => {
+    if (!eventData) return;
+    
+    const currentMessage = eventData.transition_message ?? null;
+    const previousMessage = previousTransitionMessageRef.current;
+    
+    // Play countdown audio when transition countdown starts (message becomes "3")
+    if (currentMessage === '3' && previousMessage !== '3') {
+      playAudio('countdown');
+    }
+    
+    previousTransitionMessageRef.current = currentMessage;
+  }, [eventData?.transition_message, playAudio]);
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
