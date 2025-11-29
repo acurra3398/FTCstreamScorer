@@ -15,7 +15,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
+import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES, MATCH_TIMING } from '@/lib/constants';
 
 // Audio service hook for managing match sounds on display page
 function useDisplayAudioService() {
@@ -206,12 +206,13 @@ function DisplayPageContent() {
         const seconds = calculatePreciseTimerSeconds(currentEventData);
         setTimerDisplay(formatTimeDisplay(seconds));
         
-        // During TRANSITION, play countdown audio when timer shows 3
+        // During TRANSITION, play countdown audio when timer shows the countdown start value
         // This ensures the audio is perfectly synced with the visual timer display
         if (currentEventData.match_state === 'TRANSITION') {
-          if (seconds === 3 && lastPlayedTransitionCountdownRef.current !== 3) {
+          const countdownStart = MATCH_TIMING.TRANSITION_COUNTDOWN_START;
+          if (seconds === countdownStart && lastPlayedTransitionCountdownRef.current !== countdownStart) {
             playAudioRef.current('countdown');
-            lastPlayedTransitionCountdownRef.current = 3;
+            lastPlayedTransitionCountdownRef.current = countdownStart;
           }
         } else {
           // Reset the ref when not in transition
