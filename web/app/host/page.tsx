@@ -1084,7 +1084,7 @@ function HostPageContent() {
         timerRunning: true,
       }).catch(console.error);
       
-      if (remaining <= 0 && !waitingForSound.current) {
+      if (remaining <= 0) {
         // Transition immediately - don't wait for sound to finish
         // Play only the transition bells sound (not endauto)
         playAudio('transition');
