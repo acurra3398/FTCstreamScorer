@@ -17,7 +17,7 @@ import {
   extractBlueScore,
   calculateTotalWithPenalties,
 } from '@/lib/supabase';
-import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, AUDIO_FILES, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
+import { COLORS, MOTIF_NAMES, VALID_MOTIFS, MATCH_TIMING, VIDEO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING } from '@/lib/constants';
 
 // API helper functions
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -117,67 +117,21 @@ async function hostActionAPI(
   }
 }
 
-// Audio service hook for managing match sounds
+// Silent audio service hook - no actual audio playback on host
+// All sounds are played on the display page to ensure audio comes through display device only
 function useAudioService() {
-  const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
-  
-  useEffect(() => {
-    // Preload audio files and set volume for sound effects
-    Object.entries(AUDIO_FILES).forEach(([key, path]) => {
-      const audio = new Audio(path);
-      audio.preload = 'auto';
-      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS; // Set sound effects to full volume
-      audioRefs.current[key] = audio;
-    });
-    
-    return () => {
-      // Cleanup
-      Object.values(audioRefs.current).forEach(audio => {
-        audio.pause();
-        audio.src = '';
-        audio.onended = null;
-      });
-    };
-  }, []);
-  
-  const playAudio = useCallback((key: string, onEnded?: () => void) => {
-    const audio = audioRefs.current[key];
-    if (audio) {
-      // Clear any previous onended handler
-      audio.onended = null;
-      audio.currentTime = 0;
-      // Ensure volume is set to full for sound effects
-      audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
-      
-      if (onEnded) {
-        // Use addEventListener for more reliable callback
-        const handleEnded = () => {
-          audio.removeEventListener('ended', handleEnded);
-          onEnded();
-        };
-        audio.addEventListener('ended', handleEnded);
-      }
-      
-      audio.play().catch(err => {
-        console.error('Audio playback failed:', err);
-        // If audio fails to play, still call the callback after a short delay
-        // This ensures the match flow continues even if audio doesn't work
-        if (onEnded) {
-          setTimeout(onEnded, 100);
-        }
-      });
-    } else if (onEnded) {
-      // No audio element, call callback immediately
-      onEnded();
+  // No-op playAudio that just calls the callback immediately
+  // This preserves the timing callbacks without playing any audio
+  const playAudio = useCallback((_key: string, onEnded?: () => void) => {
+    // Don't play any audio - sounds are played on display device
+    // If there's a callback, call it after a short delay to simulate audio playback
+    if (onEnded) {
+      setTimeout(onEnded, 100);
     }
   }, []);
   
   const stopAll = useCallback(() => {
-    Object.values(audioRefs.current).forEach(audio => {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.onended = null;
-    });
+    // No-op - no audio to stop
   }, []);
   
   return { playAudio, stopAll };
@@ -223,7 +177,7 @@ function HostPageContent() {
   // Timer state
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(MATCH_TIMING.AUTO_DURATION);
+  const [secondsRemaining, setSecondsRemaining] = useState(MATCH_TIMING.INITIAL_DISPLAY_TIME);
   const [matchPhase, setMatchPhase] = useState<MatchState>('NOT_STARTED');
   const [totalElapsed, setTotalElapsed] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1260,7 +1214,7 @@ function HostPageContent() {
     setTimerRunning(false);
     setTimerPaused(false);
     setTotalElapsed(0);
-    setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
+    setSecondsRemaining(MATCH_TIMING.INITIAL_DISPLAY_TIME);
     setMatchPhase('NOT_STARTED');
     waitingForSound.current = false;
     stopAll();
@@ -1271,7 +1225,7 @@ function HostPageContent() {
       await hostActionAPI(eventName, password, 'updateTimerState', { 
         timerRunning: false,
         timerPaused: false,
-        timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+        timerSecondsRemaining: MATCH_TIMING.INITIAL_DISPLAY_TIME,
       });
       setActionStatus('Match stopped');
     } catch (err) {
@@ -1386,13 +1340,13 @@ function HostPageContent() {
     // Reset match state and timer - this will hide the results overlay on display
     // The camera continues running underneath - we're just removing the overlay
     setMatchPhase('NOT_STARTED');
-    setSecondsRemaining(MATCH_TIMING.AUTO_DURATION);
+    setSecondsRemaining(MATCH_TIMING.INITIAL_DISPLAY_TIME);
     setTotalElapsed(0);
     await hostActionAPI(eventName, password, 'setMatchState', { matchState: 'NOT_STARTED' });
     await hostActionAPI(eventName, password, 'updateTimerState', { 
       timerRunning: false,
       timerPaused: false,
-      timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+      timerSecondsRemaining: MATCH_TIMING.INITIAL_DISPLAY_TIME,
     });
     
     // Clear any countdown

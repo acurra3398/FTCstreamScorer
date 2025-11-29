@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScoreBar from '@/components/ScoreBar';
 import ScoringControls from '@/components/ScoringControls';
@@ -139,6 +139,10 @@ function ScoringPageContent() {
   
   // Track last match state to detect new match
   const [lastMatchState, setLastMatchState] = useState<string | null>(null);
+  
+  // Track when scores were just reset by the host to prevent re-sending old values
+  const justResetRef = useRef(false);
+  const resetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Verify and connect to event
   useEffect(() => {
@@ -230,15 +234,31 @@ function ScoringPageContent() {
             
             if (alliance === 'RED') {
               setBlueScore(serverBlueScore);
-              // Check if scores were reset on server - sync our alliance if reset
+              // Always sync our alliance's score when server shows reset state
+              // This ensures host reset propagates to scoring devices even if match hasn't started
               if (isScoreReset(serverRedScore)) {
                 setRedScore(serverRedScore);
+                setScoresSubmitted(false);
+                // Set flag to prevent immediate re-sending of old values
+                justResetRef.current = true;
+                if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+                resetTimeoutRef.current = setTimeout(() => {
+                  justResetRef.current = false;
+                }, 1000); // Block re-sends for 1 second after reset
               }
             } else {
               setRedScore(serverRedScore);
-              // Check if scores were reset on server - sync our alliance if reset
+              // Always sync our alliance's score when server shows reset state
+              // This ensures host reset propagates to scoring devices even if match hasn't started
               if (isScoreReset(serverBlueScore)) {
                 setBlueScore(serverBlueScore);
+                setScoresSubmitted(false);
+                // Set flag to prevent immediate re-sending of old values
+                justResetRef.current = true;
+                if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+                resetTimeoutRef.current = setTimeout(() => {
+                  justResetRef.current = false;
+                }, 1000); // Block re-sends for 1 second after reset
               }
             }
           }
@@ -275,6 +295,12 @@ function ScoringPageContent() {
   ) => {
     // Only allow changes to our alliance
     if (scoringAlliance !== alliance) return;
+    
+    // Don't allow changes immediately after a reset to prevent old values from being re-sent
+    if (justResetRef.current) {
+      console.log('Ignoring score change - scores just reset by host');
+      return;
+    }
 
     const updateFn = scoringAlliance === 'RED' ? setRedScore : setBlueScore;
     
