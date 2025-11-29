@@ -1061,10 +1061,8 @@ function HostPageContent() {
         transitionMessage = 'DRIVERS PICK UP CONTROLLERS';
       } else if (remaining > 0) {
         transitionMessage = String(remaining);
-        // Play countdown sound at 3, 2, 1
-        if (remaining === MATCH_TIMING.TRANSITION_COUNTDOWN_START) {
-          playAudio('countdown');
-        }
+        // Note: transition.mp3 already includes the 3-2-1 countdown audio,
+        // so we don't play a separate countdown sound here to avoid duplicate audio
       }
       
       // Sync timer and transition message to database
@@ -1176,31 +1174,29 @@ function HostPageContent() {
         // Visual countdown finished (after showing 1) - clear interval
         clearInterval(countdownInterval);
         
-        // After 321 countdown completes, play the start/bell sound and begin match
-        setTimeout(() => {
-          // Clear the countdown display
-          hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
-          
-          // Play the start match bell sound
-          playAudio('startmatch');
-          
-          // Start the match immediately after countdown
-          setMatchPhase('AUTONOMOUS');
-          setTimerRunning(true);
-          setTimerPaused(false);
-          waitingForSound.current = false;
-          
-          // Sync match state and timer
-          hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
-          hostActionAPI(eventName, password, 'updateTimerState', { 
-            timerRunning: true,
-            timerPaused: false,
-            timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
-            timerStartedAt: new Date().toISOString(),
-          }).catch(console.error);
-          
-          setActionStatus('Match started! Autonomous period.');
-        }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS); // Wait 1 second after "1" before starting
+        // After 321 countdown completes, immediately start the match
+        // Clear the countdown display
+        hostActionAPI(eventName, password, 'setCountdown', { countdownNumber: null }).catch(console.error);
+        
+        // Play the start match bell sound (no-op on host, display will play on state change)
+        playAudio('startmatch');
+        
+        // Start the match immediately after countdown - no delay
+        setMatchPhase('AUTONOMOUS');
+        setTimerRunning(true);
+        setTimerPaused(false);
+        waitingForSound.current = false;
+        
+        // Sync match state and timer
+        hostActionAPI(eventName, password, 'setMatchState', { matchState: 'AUTONOMOUS' }).catch(console.error);
+        hostActionAPI(eventName, password, 'updateTimerState', { 
+          timerRunning: true,
+          timerPaused: false,
+          timerSecondsRemaining: MATCH_TIMING.AUTO_DURATION,
+          timerStartedAt: new Date().toISOString(),
+        }).catch(console.error);
+        
+        setActionStatus('Match started! Autonomous period.');
       }
     }, MATCH_TIMING.COUNTDOWN_INTERVAL_MS);
   };

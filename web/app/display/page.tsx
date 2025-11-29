@@ -206,15 +206,10 @@ function DisplayPageContent() {
         const seconds = calculatePreciseTimerSeconds(currentEventData);
         setTimerDisplay(formatTimeDisplay(seconds));
         
-        // During TRANSITION, play countdown audio when timer shows the countdown start value
-        // This ensures the audio is perfectly synced with the visual timer display
-        if (currentEventData.match_state === 'TRANSITION') {
-          const countdownStart = MATCH_TIMING.TRANSITION_COUNTDOWN_START;
-          if (seconds === countdownStart && lastPlayedTransitionCountdownRef.current !== countdownStart) {
-            playAudioRef.current('countdown');
-            lastPlayedTransitionCountdownRef.current = countdownStart;
-          }
-        } else {
+        // Note: During TRANSITION, the transition.mp3 audio already includes the 3-2-1 countdown
+        // so we don't need to play a separate countdown audio here.
+        // The lastPlayedTransitionCountdownRef is kept for future use if needed.
+        if (currentEventData.match_state !== 'TRANSITION') {
           // Reset the ref when not in transition
           lastPlayedTransitionCountdownRef.current = null;
         }
