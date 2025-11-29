@@ -15,7 +15,7 @@ import {
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
-import { COLORS, LAYOUT, MATCH_TIMING, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
+import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES } from '@/lib/constants';
 
 // Audio service hook for managing match sounds on display page
 function useDisplayAudioService() {
@@ -196,25 +196,9 @@ function DisplayPageContent() {
     const previousState = previousMatchStateRef.current;
     
     // Only trigger sounds on state change
+    // Note: Sounds are now primarily played by the host page to avoid duplicate playback
+    // The display page only plays sounds that the host doesn't play (like results)
     if (currentState !== previousState) {
-      // Play sound effects based on state transitions
-      if (currentState === 'AUTONOMOUS' && previousState === 'NOT_STARTED') {
-        // Match starting - play the start match bell sound
-        playAudio('startmatch');
-      } else if (currentState === 'TRANSITION' && previousState === 'AUTONOMOUS') {
-        // End of autonomous - play only the transition bells sound
-        playAudio('transition');
-      } else if (currentState === 'TELEOP' && previousState === 'TRANSITION') {
-        // Teleop starting - play the start match bell sound
-        playAudio('startmatch');
-      } else if (currentState === 'END_GAME' && previousState === 'TELEOP') {
-        // End game warning (30 seconds remaining)
-        playAudio('endgame');
-      } else if (currentState === 'FINISHED' && (previousState === 'TELEOP' || previousState === 'END_GAME')) {
-        // Match ended
-        playAudio('endmatch');
-      }
-      
       // Reset camera override when match state changes back to NOT_STARTED
       if (currentState === 'NOT_STARTED') {
         setShowCameraOverride(false);
@@ -222,32 +206,13 @@ function DisplayPageContent() {
       
       previousMatchStateRef.current = currentState;
     }
-  }, [eventData?.match_state, playAudio]);
+  }, [eventData?.match_state]);
   
-  // Play countdown sound when countdown number is set (pre-match 3-2-1)
-  useEffect(() => {
-    if (countdownDisplay !== null && countdownDisplay > 0) {
-      // Only play countdown sound on the first number (e.g., 3)
-      if (countdownDisplay === MATCH_TIMING.COUNTDOWN_NUMBERS[0]) {
-        playAudio('countdown');
-      }
-    }
-  }, [countdownDisplay, playAudio]);
+  // Pre-match countdown is handled by host page audio
+  // Display just shows the countdown number visually
   
-  // Play countdown sound during transition (3-2-1 into TeleOp)
-  // Track the previous transition message to detect when countdown starts
-  const previousTransitionMessageRef = useRef<string | null>(null);
-  useEffect(() => {
-    const currentMessage = eventData?.transition_message;
-    const previousMessage = previousTransitionMessageRef.current;
-    
-    // Play countdown sound when transition_message changes to "3" (start of countdown)
-    if (currentMessage === '3' && previousMessage !== '3') {
-      playAudio('countdown');
-    }
-    
-    previousTransitionMessageRef.current = currentMessage ?? null;
-  }, [eventData?.transition_message, playAudio]);
+  // Transition countdown is handled by host page audio
+  // Display just shows the transition message visually
   
   // Handle WebRTC audio streaming from host
   useEffect(() => {
@@ -1039,6 +1004,31 @@ function DisplayPageContent() {
             )}
           </div>
           
+          {/* OVERLAY LAYER (z-5): Finalizing Scores - appears ON TOP of camera when UNDER_REVIEW */}
+          {eventData?.match_state === 'UNDER_REVIEW' && (
+            <div className="absolute inset-0 z-5 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
+              <div 
+                className="text-yellow-400 font-bold animate-pulse text-center"
+                style={{ 
+                  fontSize: 'clamp(28px, 5vw, 64px)', 
+                  fontFamily: 'Arial, sans-serif',
+                  textShadow: '0 0 20px rgba(255, 200, 0, 0.5)',
+                }}
+              >
+                ⏳ FINALIZING SCORES ⏳
+              </div>
+              <div 
+                className="text-white mt-4"
+                style={{ 
+                  fontSize: 'clamp(14px, 2vw, 24px)', 
+                  fontFamily: 'Arial, sans-serif',
+                }}
+              >
+                Referees are reviewing scores...
+              </div>
+            </div>
+          )}
+          
           {/* OVERLAY LAYER (z-10): Final Results - appears ON TOP of camera when SCORES_RELEASED */}
           {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && !showCameraOverride && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-2" style={{ backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
@@ -1189,6 +1179,37 @@ function DisplayPageContent() {
         </div>
       )}
       
+      {/* Finalizing Scores Overlay - shown during UNDER_REVIEW state */}
+      {eventData?.match_state === 'UNDER_REVIEW' && (
+        <div 
+          className="absolute left-0 right-0 top-0 z-35 flex flex-col items-center justify-center" 
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%`,
+          }}
+        >
+          <div 
+            className="text-yellow-400 font-bold animate-pulse text-center"
+            style={{ 
+              fontSize: 'clamp(36px, 6vw, 80px)', 
+              fontFamily: 'Arial, sans-serif',
+              textShadow: '0 0 20px rgba(255, 200, 0, 0.5)',
+            }}
+          >
+            ⏳ FINALIZING SCORES ⏳
+          </div>
+          <div 
+            className="text-white mt-4"
+            style={{ 
+              fontSize: 'clamp(16px, 2vw, 28px)', 
+              fontFamily: 'Arial, sans-serif',
+            }}
+          >
+            Referees are reviewing scores...
+          </div>
+        </div>
+      )}
+      
       {/* Final Results Display (after video) - positioned above ScoreBar, compact to fit screen */}
       {!showWinnerVideo && eventData?.match_state === 'SCORES_RELEASED' && (
         <div 
@@ -1285,7 +1306,7 @@ function DisplayPageContent() {
         className="flex w-full"
         style={{ height: `${LAYOUT.VIDEO_AREA_HEIGHT_PERCENT}%` }}
       >
-        {/* Red Alliance Panel */}
+        {/* Red Alliance Panel - smaller score display */}
         <div 
           className="flex-1 flex flex-col items-center justify-center"
           style={{ 
@@ -1296,7 +1317,7 @@ function DisplayPageContent() {
           <div 
             className="font-bold text-white mb-1"
             style={{ 
-              fontSize: 'clamp(16px, 2.5vw, 32px)',
+              fontSize: 'clamp(14px, 2vw, 24px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1305,7 +1326,7 @@ function DisplayPageContent() {
           <div 
             className="text-white mb-2"
             style={{ 
-              fontSize: 'clamp(12px, 1.5vw, 20px)',
+              fontSize: 'clamp(10px, 1.2vw, 16px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1314,7 +1335,7 @@ function DisplayPageContent() {
           <div 
             className="font-bold text-white"
             style={{ 
-              fontSize: 'clamp(80px, 15vw, 200px)',
+              fontSize: 'clamp(60px, 10vw, 140px)',
               lineHeight: 1,
               fontFamily: 'Arial, sans-serif',
             }}
@@ -1323,22 +1344,22 @@ function DisplayPageContent() {
           </div>
         </div>
 
-        {/* Center Info Panel */}
+        {/* Center Info Panel - BIGGER timer and motif */}
         <div 
           className="flex flex-col items-center justify-center"
           style={{ 
             backgroundColor: COLORS.WHITE,
-            width: '15%',
-            minWidth: '150px',
-            maxWidth: '220px',
+            width: '25%',
+            minWidth: '200px',
+            maxWidth: '350px',
             padding: '2vh 1vw',
           }}
         >
-          {/* Timer */}
+          {/* Timer - MUCH BIGGER */}
           <div 
             className="font-bold text-black mb-2"
             style={{ 
-              fontSize: 'clamp(32px, 5vw, 72px)',
+              fontSize: 'clamp(48px, 8vw, 120px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1350,18 +1371,18 @@ function DisplayPageContent() {
             className="font-bold mb-1"
             style={{ 
               color: getPhaseColor(),
-              fontSize: 'clamp(16px, 2vw, 28px)',
+              fontSize: 'clamp(18px, 2.5vw, 36px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
             {matchPhase === 'NOT_STARTED' ? 'READY' : matchPhase.replace(/_/g, ' ')}
           </div>
           
-          {/* Motif */}
+          {/* Motif - BIGGER with emoji circles */}
           <div 
             className="font-bold text-gray-600"
             style={{ 
-              fontSize: 'clamp(12px, 1.5vw, 20px)',
+              fontSize: 'clamp(24px, 3vw, 48px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1380,7 +1401,7 @@ function DisplayPageContent() {
           </div>
         </div>
 
-        {/* Blue Alliance Panel */}
+        {/* Blue Alliance Panel - smaller score display */}
         <div 
           className="flex-1 flex flex-col items-center justify-center"
           style={{ 
@@ -1391,7 +1412,7 @@ function DisplayPageContent() {
           <div 
             className="font-bold text-white mb-1"
             style={{ 
-              fontSize: 'clamp(16px, 2.5vw, 32px)',
+              fontSize: 'clamp(14px, 2vw, 24px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1400,7 +1421,7 @@ function DisplayPageContent() {
           <div 
             className="text-white mb-2"
             style={{ 
-              fontSize: 'clamp(12px, 1.5vw, 20px)',
+              fontSize: 'clamp(10px, 1.2vw, 16px)',
               fontFamily: 'Arial, sans-serif',
             }}
           >
@@ -1409,7 +1430,7 @@ function DisplayPageContent() {
           <div 
             className="font-bold text-white"
             style={{ 
-              fontSize: 'clamp(80px, 15vw, 200px)',
+              fontSize: 'clamp(60px, 10vw, 140px)',
               lineHeight: 1,
               fontFamily: 'Arial, sans-serif',
             }}

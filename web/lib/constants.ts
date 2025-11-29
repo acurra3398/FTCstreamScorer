@@ -102,8 +102,8 @@ export const MATCH_TIMING = {
   AUTO_DURATION: 30,        // 30 seconds autonomous
   TRANSITION_DURATION: 8,   // 8 seconds transition (drivers pick up controllers)
   TELEOP_DURATION: 120,     // 2 minutes teleop
-  ENDGAME_START: 90,        // End game starts at 90 seconds into teleop (30 sec remaining)
-  TOTAL_DURATION: 158,      // Total match time: 30 + 8 + 120 = 158 seconds
+  ENDGAME_START: 100,       // End game starts at 100 seconds into teleop (20 sec remaining)
+  TOTAL_DURATION: 158,      // Total match time (AUTO + TRANSITION + TELEOP): 30 + 8 + 120 = 158 seconds
   COUNTDOWN_NUMBERS: [3, 2, 1] as readonly number[], // Pre-match countdown sequence
   COUNTDOWN_INTERVAL_MS: 1000, // Countdown interval in milliseconds
   TRANSITION_COUNTDOWN_START: 3, // Seconds remaining in transition to show countdown (3, 2, 1)
