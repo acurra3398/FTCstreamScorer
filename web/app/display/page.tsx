@@ -17,7 +17,7 @@ import {
 import { COLORS, LAYOUT, VIDEO_FILES, AUDIO_FILES, WEBRTC_CONFIG, WEBRTC_POLLING, AUDIO_VOLUMES, MATCH_TIMING } from '@/lib/constants';
 
 // Audio service hook for managing match sounds on display page
-function useDisplayAudioService() {
+function useDisplayAudioService(soundsEnabled: boolean) {
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
   
   useEffect(() => {
@@ -40,6 +40,15 @@ function useDisplayAudioService() {
   }, []);
   
   const playAudio = useCallback((key: string, onEnded?: () => void) => {
+    // Only play if sounds are enabled (user has interacted with the page)
+    if (!soundsEnabled) {
+      // Sounds not enabled - still call callback so sequence can continue
+      if (onEnded) {
+        onEnded();
+      }
+      return;
+    }
+    
     const audio = audioRefs.current[key];
     if (audio) {
       audio.currentTime = 0;
@@ -65,9 +74,24 @@ function useDisplayAudioService() {
       // Audio not found, still call callback
       onEnded();
     }
+  }, [soundsEnabled]);
+  
+  // Function to unlock audio context by playing a silent sound
+  const unlockAudio = useCallback(() => {
+    // Try to play a very short silent audio to unlock the audio context
+    Object.values(audioRefs.current).forEach(audio => {
+      audio.volume = 0;
+      audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
+      }).catch(() => {
+        // Ignore errors - some browsers may still block this
+      });
+    });
   }, []);
   
-  return { playAudio };
+  return { playAudio, unlockAudio };
 }
 
 // API helper function - fetch event via server-side API route
@@ -177,8 +201,17 @@ function DisplayPageContent() {
   // Override to show camera after scores released
   const [showCameraOverride, setShowCameraOverride] = useState(false);
   
+  // Track if sounds are enabled (requires user interaction to enable due to browser autoplay policies)
+  const [soundsEnabled, setSoundsEnabled] = useState(false);
+  
   // Audio service for playing sound effects
-  const { playAudio } = useDisplayAudioService();
+  const { playAudio, unlockAudio } = useDisplayAudioService(soundsEnabled);
+  
+  // Handler for enabling sounds via user interaction
+  const handleEnableSounds = useCallback(() => {
+    unlockAudio();
+    setSoundsEnabled(true);
+  }, [unlockAudio]);
   
   // Ref for playAudio to use in interval callbacks
   const playAudioRef = useRef(playAudio);
@@ -1046,10 +1079,52 @@ function DisplayPageContent() {
     }
   };
 
+  // Sound enable overlay - shown when sounds are not yet enabled
+  // Requires user click to unlock audio due to browser autoplay policies
+  const SoundEnableOverlay = () => {
+    if (soundsEnabled) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center cursor-pointer"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
+        onClick={handleEnableSounds}
+      >
+        <div className="text-center p-8">
+          <div 
+            className="text-white font-bold mb-4"
+            style={{ fontSize: 'clamp(24px, 4vw, 48px)', fontFamily: 'Arial, sans-serif' }}
+          >
+            🔊 Click to Enable Match Sounds
+          </div>
+          <div 
+            className="text-gray-400 mb-6"
+            style={{ fontSize: 'clamp(14px, 2vw, 20px)', fontFamily: 'Arial, sans-serif' }}
+          >
+            Browser security requires user interaction to play audio
+          </div>
+          <button
+            className="px-8 py-4 bg-green-600 text-white rounded-lg font-bold text-xl hover:bg-green-700 transition-colors"
+            onClick={handleEnableSounds}
+          >
+            Enable Sounds
+          </button>
+          <div 
+            className="text-gray-500 mt-6"
+            style={{ fontSize: 'clamp(12px, 1.5vw, 16px)', fontFamily: 'Arial, sans-serif' }}
+          >
+            Event: {eventName}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Overlay mode - just the score bar at bottom with transparent background
   if (displayMode === 'overlay') {
     return (
       <div className="w-full h-screen flex flex-col justify-end bg-transparent">
+        <SoundEnableOverlay />
         {/* Score Bar at bottom */}
         <div className="w-full">
           <ScoreBar
@@ -1080,6 +1155,8 @@ function DisplayPageContent() {
           backgroundColor: COLORS.BLACK,
         }}
       >
+        <SoundEnableOverlay />
+        
         {/* Hidden audio element for announcer audio streaming (camera mode) 
             Note: This element only renders in camera mode. For full display mode, 
             a similar element is rendered below. Only one mode is active at a time. */}
@@ -1183,6 +1260,36 @@ function DisplayPageContent() {
               </div>
             )}
           </div>
+          
+          {/* OVERLAY LAYER (z-3): Pre-match Countdown - appears ON TOP of camera during countdown */}
+          {countdownDisplay !== null && countdownDisplay !== undefined && (
+            <div 
+              className="absolute inset-0 z-3 flex flex-col items-center justify-center" 
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
+            >
+              <div 
+                className="text-yellow-400 font-bold text-center"
+                style={{ 
+                  fontSize: 'clamp(14px, 2vw, 24px)', 
+                  fontFamily: 'Arial, sans-serif',
+                  marginBottom: '10px',
+                }}
+              >
+                MATCH STARTING IN
+              </div>
+              <div 
+                className="text-white font-bold animate-pulse"
+                style={{ 
+                  fontSize: 'clamp(120px, 20vw, 200px)', 
+                  fontFamily: 'Arial, sans-serif',
+                  textShadow: '0 0 40px rgba(255, 255, 255, 0.5)',
+                  lineHeight: 1,
+                }}
+              >
+                {countdownDisplay}
+              </div>
+            </div>
+          )}
           
           {/* OVERLAY LAYER (z-5): Finalizing Scores - appears ON TOP of camera when UNDER_REVIEW */}
           {eventData?.match_state === 'UNDER_REVIEW' && (
@@ -1337,6 +1444,8 @@ function DisplayPageContent() {
       className="w-full h-screen flex flex-col overflow-hidden relative"
       style={{ backgroundColor: COLORS.BLACK }}
     >
+      <SoundEnableOverlay />
+      
       {/* Hidden audio element for results sound */}
       <audio ref={audioRef} preload="auto" />
       
