@@ -1105,7 +1105,6 @@ function DisplayPageContent() {
           </div>
           <button
             className="px-8 py-4 bg-green-600 text-white rounded-lg font-bold text-xl hover:bg-green-700 transition-colors"
-            onClick={handleEnableSounds}
           >
             Enable Sounds
           </button>
@@ -1261,11 +1260,11 @@ function DisplayPageContent() {
             )}
           </div>
           
-          {/* OVERLAY LAYER (z-3): Pre-match Countdown - appears ON TOP of camera during countdown */}
+          {/* OVERLAY LAYER: Pre-match Countdown - appears ON TOP of camera during countdown */}
           {countdownDisplay !== null && countdownDisplay !== undefined && (
             <div 
-              className="absolute inset-0 z-3 flex flex-col items-center justify-center" 
-              style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
+              className="absolute inset-0 flex flex-col items-center justify-center" 
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)', zIndex: 5 }}
             >
               <div 
                 className="text-yellow-400 font-bold text-center"
@@ -1291,9 +1290,9 @@ function DisplayPageContent() {
             </div>
           )}
           
-          {/* OVERLAY LAYER (z-5): Finalizing Scores - appears ON TOP of camera when UNDER_REVIEW */}
+          {/* OVERLAY LAYER: Finalizing Scores - appears ON TOP of camera when UNDER_REVIEW */}
           {eventData?.match_state === 'UNDER_REVIEW' && (
-            <div className="absolute inset-0 z-5 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
+            <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)', zIndex: 10 }}>
               <div 
                 className="text-yellow-400 font-bold animate-pulse text-center"
                 style={{ 
