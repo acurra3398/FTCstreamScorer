@@ -702,8 +702,8 @@ function HostPageContent() {
                 // Ignore JSON parsing errors for malformed ICE candidate data
               }
               
-              // Stop polling once connection is stable and connected
-              if (pc.connectionState === 'connected') {
+              // Stop polling once connection is stable and connected/completed
+              if (pc.connectionState === 'connected' || pc.connectionState === 'completed' as RTCPeerConnectionState) {
                 clearInterval(pollForAnswer);
               }
             }
@@ -894,8 +894,8 @@ function HostPageContent() {
                 // Ignore JSON parsing errors for malformed ICE candidate data
               }
               
-              // Stop polling once connection is stable and connected
-              if (pc.connectionState === 'connected') {
+              // Stop polling once connection is stable and connected/completed
+              if (pc.connectionState === 'connected' || pc.connectionState === 'completed' as RTCPeerConnectionState) {
                 clearInterval(pollForAnswer);
               }
             }
