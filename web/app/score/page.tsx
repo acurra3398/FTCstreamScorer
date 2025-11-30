@@ -14,9 +14,9 @@ import {
   extractRedScore, 
   extractBlueScore,
   calculateTotalWithPenalties,
-  calculatePreciseTimerSeconds,
   formatTimeDisplay,
 } from '@/lib/supabase';
+import { MATCH_TIMING } from '@/lib/constants';
 
 // API helper functions - all calls go through server-side API routes
 async function verifyEventPasswordAPI(eventName: string, password: string): Promise<boolean> {
@@ -115,24 +115,71 @@ function ScoringPageContent() {
   const [matchHistory, setMatchHistory] = useState<MatchRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   
-  // Timer display synced from host
+  // Timer state (runs independently after initial sync)
   const [timerDisplay, setTimerDisplay] = useState('--:--');
   const [countdownDisplay, setCountdownDisplay] = useState<number | null>(null);
   
+  // Store the initial timer start data when timer first starts
+  // This allows the timer to run independently without re-syncing from server
+  const timerStartDataRef = useRef<{
+    startedAt: string;
+    initialSeconds: number;
+  } | null>(null);
+  
+  // Track previous timer running state to detect when timer starts
+  const previousTimerRunningRef = useRef<boolean>(false);
+  
+  // Calculate timer based on stored start data (independent of server updates)
+  const calculateIndependentTimer = useCallback((): number => {
+    const startData = timerStartDataRef.current;
+    if (!startData) return MATCH_TIMING.INITIAL_DISPLAY_TIME;
+    
+    const startTime = new Date(startData.startedAt).getTime();
+    const now = Date.now();
+    const elapsedSeconds = Math.floor((now - startTime) / 1000);
+    return Math.max(0, startData.initialSeconds - elapsedSeconds);
+  }, []);
+
+  // Handle timer start - capture initial data for independent operation
+  useEffect(() => {
+    if (!eventData) return;
+    
+    const wasRunning = previousTimerRunningRef.current;
+    const isNowRunning = eventData.timer_running && !eventData.timer_paused;
+    
+    // Detect timer start transition
+    if (!wasRunning && isNowRunning && eventData.timer_started_at) {
+      // Timer just started - capture the start data for independent operation
+      timerStartDataRef.current = {
+        startedAt: eventData.timer_started_at,
+        initialSeconds: eventData.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME,
+      };
+    }
+    
+    // If timer is not running and not started, reset display
+    if (!eventData.timer_running && eventData.match_state === 'NOT_STARTED') {
+      timerStartDataRef.current = null;
+      setTimerDisplay(formatTimeDisplay(eventData.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME));
+    }
+    
+    previousTimerRunningRef.current = isNowRunning;
+  }, [eventData?.timer_running, eventData?.timer_paused, eventData?.timer_started_at, eventData?.match_state, eventData?.timer_seconds_remaining]);
+  
   // Local timer update effect - recalculates every 100ms for smooth display
-  // This ensures the timer updates even between server polls
+  // Uses captured start data for independent operation (not synced from server)
   useEffect(() => {
     if (!eventData || !eventData.timer_running || eventData.timer_paused) {
       return;
     }
     
     const localTimer = setInterval(() => {
-      const seconds = calculatePreciseTimerSeconds(eventData);
+      // Use independent timer calculation based on stored start data
+      const seconds = calculateIndependentTimer();
       setTimerDisplay(formatTimeDisplay(seconds));
     }, 100);
     
     return () => clearInterval(localTimer);
-  }, [eventData]);
+  }, [eventData?.timer_running, eventData?.timer_paused, calculateIndependentTimer]);
   
   // Score submission state
   const [scoresSubmitted, setScoresSubmitted] = useState(false);
@@ -173,7 +220,8 @@ function ScoringPageContent() {
         setEventData(data);
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
-        setTimerDisplay(formatTimeDisplay(calculatePreciseTimerSeconds(data)));
+        // Set initial timer display - timer will run independently after start
+        setTimerDisplay(formatTimeDisplay(data.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME));
         setCountdownDisplay(data.countdown_number ?? null);
         setIsConnected(true);
         setLastSync(new Date().toLocaleTimeString());
@@ -274,8 +322,7 @@ function ScoringPageContent() {
           setEventData(data);
           setLastMatchState(data.match_state);
           
-          // Sync timer display from host with precise timing
-          setTimerDisplay(formatTimeDisplay(calculatePreciseTimerSeconds(data)));
+          // Note: Timer is NOT synced here - it runs independently after initial start
           setCountdownDisplay(data.countdown_number ?? null);
           setLastSync(new Date().toLocaleTimeString());
         }
