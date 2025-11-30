@@ -85,18 +85,16 @@ public class AudioService {
      * TRANSITION: Play transition, wait 3 seconds, then play countdown, DO NOT WAIT
      */
     public void playTransition() {
-        playAudio("transition", () -> {
-            // Wait 3 seconds after transition audio finishes, then play countdown
+            // Wait 3 seconds after endauto finishes, then play transition
             new Thread(() -> {
                 try {
                     Thread.sleep(TRANSITION_TO_COUNTDOWN_DELAY_MS);
-                    playAudio("countdown", null);
+                    playAudio("transition", null);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     e.printStackTrace();
                 }
             }).start();
-        });
     }
     
     /**
