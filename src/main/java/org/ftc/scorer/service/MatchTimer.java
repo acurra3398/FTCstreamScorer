@@ -95,6 +95,7 @@ public class MatchTimer {
                 inCountdown = false;
                 countdownDisplay.set("");
                 
+                // Play endauto.wav when auto ends
                 audioService.playEndAuto(() -> {
                     // After endauto finishes, start transition period immediately
                     match.setState(Match.MatchState.TRANSITION);
@@ -102,10 +103,10 @@ public class MatchTimer {
                     secondsRemaining.set(TRANSITION_DURATION);
                     totalSeconds = 0; // Reset for transition
                     waitingForSoundToEnd = false;
-                    
-                    // THEN transition period: Play transition, DO NOT WAIT, start timer immediately
-                    audioService.playTransition();
                 });
+                
+                // Schedule transition.mp3 to play 3 seconds after auto ends
+                audioService.playTransitionAfterDelay();
             }
         } else if (match.getState() == Match.MatchState.TRANSITION) {
             // 8-second transition period (drivers pick up controllers)

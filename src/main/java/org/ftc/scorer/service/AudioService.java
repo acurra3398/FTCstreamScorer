@@ -100,6 +100,21 @@ public class AudioService {
     }
     
     /**
+     * Play transition sound after a 3-second delay (used when scheduling from auto end)
+     */
+    public void playTransitionAfterDelay() {
+        new Thread(() -> {
+            try {
+                Thread.sleep(TRANSITION_TO_COUNTDOWN_DELAY_MS);
+                playTransition();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                e.printStackTrace();
+            }
+        }).start();
+    }
+    
+    /**
      * WHEN teleop has 0:20 remaining: Play endgame, DO NOT WAIT
      */
     public void playEndgame() {
