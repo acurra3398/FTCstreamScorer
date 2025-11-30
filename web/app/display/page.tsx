@@ -11,7 +11,6 @@ import {
   extractRedScore, 
   extractBlueScore,
   calculateTotalWithPenalties,
-  calculatePreciseTimerSeconds,
   formatTimeDisplay,
   calculateScoreBreakdown,
 } from '@/lib/supabase';
@@ -40,14 +39,31 @@ function useDisplayAudioService() {
     };
   }, []);
   
-  const playAudio = useCallback((key: string) => {
+  const playAudio = useCallback((key: string, onEnded?: () => void) => {
     const audio = audioRefs.current[key];
     if (audio) {
       audio.currentTime = 0;
       audio.volume = AUDIO_VOLUMES.SOUND_EFFECTS;
+      // Set up onended callback before playing
+      if (onEnded) {
+        audio.onended = () => {
+          audio.onended = null; // Clean up listener
+          onEnded();
+        };
+      } else {
+        audio.onended = null;
+      }
       audio.play().catch(err => {
         console.error('Audio playback failed:', err);
+        // Still call onEnded even on error so sequence can continue
+        if (onEnded) {
+          audio.onended = null;
+          onEnded();
+        }
       });
+    } else if (onEnded) {
+      // Audio not found, still call callback
+      onEnded();
     }
   }, []);
   
@@ -176,18 +192,57 @@ function DisplayPageContent() {
   const [blueScore, setBlueScore] = useState<DecodeScore>(createDefaultScore());
   const [eventData, setEventData] = useState<EventData | null>(null);
   
-  // Timer state (synchronized from host)
+  // Timer state (runs independently after initial sync)
   const [timerDisplay, setTimerDisplay] = useState('--:--');
+  
+  // Store the initial timer start data when timer first starts
+  // This allows the timer to run independently without re-syncing from server
+  const timerStartDataRef = useRef<{
+    startedAt: string;
+    initialSeconds: number;
+  } | null>(null);
+  
+  // Track previous timer running state to detect when timer starts
+  const previousTimerRunningRef = useRef<boolean>(false);
 
-  // Calculate timer display based on event data with precise sync
-  const updateTimerDisplay = (data: EventData) => {
-    const seconds = calculatePreciseTimerSeconds(data);
-    setTimerDisplay(formatTimeDisplay(seconds));
-  };
+  // Calculate timer based on stored start data (independent of server updates)
+  const calculateIndependentTimer = useCallback((): number => {
+    const startData = timerStartDataRef.current;
+    if (!startData) return MATCH_TIMING.INITIAL_DISPLAY_TIME;
+    
+    const startTime = new Date(startData.startedAt).getTime();
+    const now = Date.now();
+    const elapsedSeconds = Math.floor((now - startTime) / 1000);
+    return Math.max(0, startData.initialSeconds - elapsedSeconds);
+  }, []);
+
+  // Handle timer start - capture initial data for independent operation
+  useEffect(() => {
+    if (!eventData) return;
+    
+    const wasRunning = previousTimerRunningRef.current;
+    const isNowRunning = eventData.timer_running && !eventData.timer_paused;
+    
+    // Detect timer start transition
+    if (!wasRunning && isNowRunning && eventData.timer_started_at) {
+      // Timer just started - capture the start data for independent operation
+      timerStartDataRef.current = {
+        startedAt: eventData.timer_started_at,
+        initialSeconds: eventData.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME,
+      };
+    }
+    
+    // If timer is not running and not started, reset display
+    if (!eventData.timer_running && eventData.match_state === 'NOT_STARTED') {
+      timerStartDataRef.current = null;
+      setTimerDisplay(formatTimeDisplay(eventData.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME));
+    }
+    
+    previousTimerRunningRef.current = isNowRunning;
+  }, [eventData?.timer_running, eventData?.timer_paused, eventData?.timer_started_at, eventData?.match_state, eventData?.timer_seconds_remaining]);
   
   // Local timer update effect - recalculates every 100ms for smooth display
-  // This ensures the timer updates even between server polls
-  // Uses refs to always have access to the latest eventData without recreating the interval
+  // Uses captured start data for independent operation (not synced from server)
   const eventDataRef = useRef(eventData);
   
   // Keep the ref in sync with the latest eventData
@@ -203,7 +258,8 @@ function DisplayPageContent() {
     const localTimer = setInterval(() => {
       const currentEventData = eventDataRef.current;
       if (currentEventData && currentEventData.timer_running && !currentEventData.timer_paused) {
-        const seconds = calculatePreciseTimerSeconds(currentEventData);
+        // Use independent timer calculation based on stored start data
+        const seconds = calculateIndependentTimer();
         setTimerDisplay(formatTimeDisplay(seconds));
         
         // Note: During TRANSITION, the transition.mp3 audio already includes the 3-2-1 countdown
@@ -217,7 +273,7 @@ function DisplayPageContent() {
     }, 100);
     
     return () => clearInterval(localTimer);
-  }, [eventData?.timer_running, eventData?.timer_paused]);
+  }, [eventData?.timer_running, eventData?.timer_paused, calculateIndependentTimer]);
   
   // Track match state changes and play appropriate sound effects
   // All sounds are played on the display page to ensure audio comes through display device
@@ -236,8 +292,10 @@ function DisplayPageContent() {
           playAudio('startmatch');
           break;
         case 'TRANSITION':
-          // Auto ended - play transition bells
-          playAudio('transition');
+          // Auto ended - play endauto sound first, then transition bells
+          playAudio('endauto', () => {
+            playAudio('transition');
+          });
           break;
         case 'TELEOP':
           // Teleop started after transition - play start match bell
@@ -781,7 +839,8 @@ function DisplayPageContent() {
         setEventData(data);
         setRedScore(extractRedScore(data));
         setBlueScore(extractBlueScore(data));
-        updateTimerDisplay(data);
+        // Set initial timer display - timer will run independently after start
+        setTimerDisplay(formatTimeDisplay(data.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME));
         setCountdownDisplay(data.countdown_number ?? null);
         setShowCameraOverride(data.show_camera_override ?? false);
         setIsConnected(true);
@@ -796,7 +855,7 @@ function DisplayPageContent() {
     connect();
   }, [eventName]);
 
-  // Poll for updates
+  // Poll for updates (timer runs independently - not updated from server)
   useEffect(() => {
     if (!isConnected || !eventName) return;
 
@@ -807,7 +866,7 @@ function DisplayPageContent() {
           setEventData(data);
           setRedScore(extractRedScore(data));
           setBlueScore(extractBlueScore(data));
-          updateTimerDisplay(data);
+          // Note: Timer is NOT updated here - it runs independently after initial start
           // Update countdown display from database
           setCountdownDisplay(data.countdown_number ?? null);
           // Sync show camera override from host
