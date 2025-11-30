@@ -686,7 +686,7 @@ function HostPageContent() {
                 console.error('Error parsing audio SDP answer:', e);
               }
               
-              clearInterval(pollForAnswer);
+              // Don't clear interval yet - continue polling for ICE candidates
             } else if (connectionEstablished && data?.audio_ice_candidates_display) {
               // Keep adding new ICE candidates even after connection established
               try {
@@ -700,6 +700,11 @@ function HostPageContent() {
                 }
               } catch (e) {
                 // Ignore JSON parsing errors for malformed ICE candidate data
+              }
+              
+              // Stop polling once connection is stable and connected/completed
+              if (pc.connectionState === 'connected' || pc.connectionState === 'completed' as RTCPeerConnectionState) {
+                clearInterval(pollForAnswer);
               }
             }
           } catch (err) {
@@ -873,7 +878,7 @@ function HostPageContent() {
                 console.error('Error parsing video SDP answer:', e);
               }
               
-              clearInterval(pollForAnswer);
+              // Don't clear interval yet - continue polling for ICE candidates
             } else if (connectionEstablished && data?.video_ice_candidates_display) {
               // Keep adding new ICE candidates even after connection established
               try {
@@ -887,6 +892,11 @@ function HostPageContent() {
                 }
               } catch (e) {
                 // Ignore JSON parsing errors for malformed ICE candidate data
+              }
+              
+              // Stop polling once connection is stable and connected/completed
+              if (pc.connectionState === 'connected' || pc.connectionState === 'completed' as RTCPeerConnectionState) {
+                clearInterval(pollForAnswer);
               }
             }
           } catch (err) {

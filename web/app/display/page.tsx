@@ -150,11 +150,13 @@ function DisplayPageContent() {
   const announcerAudioRef = useRef<HTMLAudioElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastSdpOfferRef = useRef<string>('');
+  const lastAudioIceCandidatesRef = useRef<string>('');
   
   // Video streaming receiver state
   const hostVideoRef = useRef<HTMLVideoElement>(null);
   const videoPeerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastVideoSdpOfferRef = useRef<string>('');
+  const lastVideoIceCandidatesRef = useRef<string>('');
   const [hostVideoStream, setHostVideoStream] = useState<MediaStream | null>(null);
   const [videoConnectionStatus, setVideoConnectionStatus] = useState<string>('');
   const videoReconnectAttemptsRef = useRef<number>(0);
@@ -351,15 +353,37 @@ function DisplayPageContent() {
           peerConnectionRef.current = null;
         }
         lastSdpOfferRef.current = '';
+        lastAudioIceCandidatesRef.current = '';
         return;
       }
       
       // Check if this is a new offer
       if (data.audio_sdp_offer === lastSdpOfferRef.current) {
-        return; // Same offer, no action needed
+        // Same offer - but check if we have new ICE candidates to add
+        if (data.audio_ice_candidates && 
+            data.audio_ice_candidates !== lastAudioIceCandidatesRef.current &&
+            peerConnectionRef.current) {
+          // New ICE candidates available - add them to existing peer connection
+          try {
+            const candidates = JSON.parse(data.audio_ice_candidates);
+            for (const candidate of candidates) {
+              try {
+                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (e) {
+                // Ignore errors for individual candidates - some may be duplicates or already added
+              }
+            }
+            lastAudioIceCandidatesRef.current = data.audio_ice_candidates;
+            console.log('Added new ICE candidates from host (audio)');
+          } catch (e) {
+            console.error('Error adding new host audio ICE candidates:', e);
+          }
+        }
+        return; // No need to recreate connection
       }
       
       lastSdpOfferRef.current = data.audio_sdp_offer;
+      lastAudioIceCandidatesRef.current = data.audio_ice_candidates || '';
       console.log('New audio SDP offer received, setting up connection...');
       
       try {
@@ -376,6 +400,7 @@ function DisplayPageContent() {
           if (pc.connectionState !== 'connected' && !isCleanedUp) {
             console.log('Audio connection timeout, will retry on next poll');
             lastSdpOfferRef.current = ''; // Force retry on next poll
+            lastAudioIceCandidatesRef.current = '';
           }
         }, WEBRTC_POLLING.CONNECTION_TIMEOUT_MS);
         
@@ -413,6 +438,7 @@ function DisplayPageContent() {
               if (pc.connectionState === 'disconnected' && !isCleanedUp) {
                 console.log('Audio still disconnected, triggering reconnect');
                 lastSdpOfferRef.current = '';
+                lastAudioIceCandidatesRef.current = '';
               }
             }, 3000);
           } else if (pc.connectionState === 'failed') {
@@ -422,6 +448,7 @@ function DisplayPageContent() {
               console.log(`Audio reconnect attempt ${audioReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS}`);
               // Clear the last SDP offer to force re-connection on next poll
               lastSdpOfferRef.current = '';
+              lastAudioIceCandidatesRef.current = '';
             }
           }
         };
@@ -433,6 +460,7 @@ function DisplayPageContent() {
             // Try ICE restart
             console.log('Audio ICE failed, will retry');
             lastSdpOfferRef.current = '';
+            lastAudioIceCandidatesRef.current = '';
           }
         };
         
@@ -523,6 +551,7 @@ function DisplayPageContent() {
         console.error('Error setting up audio receiver:', err);
         // Retry on error
         lastSdpOfferRef.current = '';
+        lastAudioIceCandidatesRef.current = '';
       }
     }
     
@@ -554,6 +583,7 @@ function DisplayPageContent() {
           videoPeerConnectionRef.current = null;
         }
         lastVideoSdpOfferRef.current = '';
+        lastVideoIceCandidatesRef.current = '';
         setHostVideoStream(null);
         setVideoConnectionStatus('');
         return;
@@ -561,10 +591,31 @@ function DisplayPageContent() {
       
       // Check if this is a new offer
       if (data.video_sdp_offer === lastVideoSdpOfferRef.current) {
-        return; // Same offer, no action needed
+        // Same offer - but check if we have new ICE candidates to add
+        if (data.video_ice_candidates_host && 
+            data.video_ice_candidates_host !== lastVideoIceCandidatesRef.current &&
+            videoPeerConnectionRef.current) {
+          // New ICE candidates available - add them to existing peer connection
+          try {
+            const hostCandidates = JSON.parse(data.video_ice_candidates_host);
+            for (const candidate of hostCandidates) {
+              try {
+                await videoPeerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (e) {
+                // Ignore errors for individual candidates - some may be duplicates or already added
+              }
+            }
+            lastVideoIceCandidatesRef.current = data.video_ice_candidates_host;
+            console.log('Added new ICE candidates from host');
+          } catch (e) {
+            console.error('Error adding new host ICE candidates:', e);
+          }
+        }
+        return; // No need to recreate connection
       }
       
       lastVideoSdpOfferRef.current = data.video_sdp_offer;
+      lastVideoIceCandidatesRef.current = data.video_ice_candidates_host || '';
       setVideoConnectionStatus('Connecting to host camera...');
       console.log('New video SDP offer received, setting up connection...');
       
@@ -593,6 +644,7 @@ function DisplayPageContent() {
             console.log('Video connection timeout, will retry on next poll');
             setVideoConnectionStatus('Connection timeout - retrying...');
             lastVideoSdpOfferRef.current = ''; // Force retry on next poll
+            lastVideoIceCandidatesRef.current = '';
           }
         }, WEBRTC_POLLING.CONNECTION_TIMEOUT_MS);
         
@@ -634,6 +686,7 @@ function DisplayPageContent() {
                 console.log('Video still disconnected, triggering reconnect');
                 setVideoConnectionStatus('Reconnecting...');
                 lastVideoSdpOfferRef.current = '';
+                lastVideoIceCandidatesRef.current = '';
               }
             }, 3000);
           } else if (pc.connectionState === 'failed') {
@@ -646,6 +699,7 @@ function DisplayPageContent() {
               setVideoConnectionStatus(`Reconnecting (${videoReconnectAttemptsRef.current}/${WEBRTC_POLLING.MAX_RECONNECT_ATTEMPTS})...`);
               // Clear the last SDP offer to force re-connection on next poll
               lastVideoSdpOfferRef.current = '';
+              lastVideoIceCandidatesRef.current = '';
             } else {
               setVideoConnectionStatus('Connection failed - please refresh the page');
             }
@@ -660,6 +714,7 @@ function DisplayPageContent() {
             console.log('Video ICE failed, will retry');
             setVideoConnectionStatus('ICE connection failed - reconnecting...');
             lastVideoSdpOfferRef.current = '';
+            lastVideoIceCandidatesRef.current = '';
           }
         };
         
@@ -752,6 +807,7 @@ function DisplayPageContent() {
         setVideoConnectionStatus('Error: ' + (err instanceof Error ? err.message : 'Unknown'));
         // Retry on error
         lastVideoSdpOfferRef.current = '';
+        lastVideoIceCandidatesRef.current = '';
       }
     }
     
