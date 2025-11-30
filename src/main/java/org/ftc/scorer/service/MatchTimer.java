@@ -95,18 +95,18 @@ public class MatchTimer {
                 inCountdown = false;
                 countdownDisplay.set("");
                 
-                // Play endauto.wav when auto ends
-                audioService.playEndAuto(() -> {
+                /* Play endauto.wav when auto ends
+                audioService.playEndAuto()() -> {
                     // After endauto finishes, start transition period immediately
                     match.setState(Match.MatchState.TRANSITION);
                     currentPhase.set("TRANSITION");
                     secondsRemaining.set(TRANSITION_DURATION);
                     totalSeconds = 0; // Reset for transition
                     waitingForSoundToEnd = false;
-                });
-                
+                });*/
+                audioservice.playEndAuto();
                 // Schedule transition.mp3 to play 3 seconds after auto ends
-                audioService.playTransitionAfterDelay();
+                audioService.playTransition();
             }
         } else if (match.getState() == Match.MatchState.TRANSITION) {
             // 8-second transition period (drivers pick up controllers)
