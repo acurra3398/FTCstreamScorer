@@ -95,7 +95,7 @@ public class MatchTimer {
                 inCountdown = false;
                 countdownDisplay.set("");
                 
-                /* Play endauto.wav when auto ends
+                /* Play endauto.wav when auto ends 
                 audioService.playEndAuto()() -> {
                     // After endauto finishes, start transition period immediately
                     match.setState(Match.MatchState.TRANSITION);
