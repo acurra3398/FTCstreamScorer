@@ -200,7 +200,6 @@ function DisplayPageContent() {
   const timerStartDataRef = useRef<{
     startedAt: string;
     initialSeconds: number;
-    matchState: string;
   } | null>(null);
   
   // Track previous timer running state to detect when timer starts
@@ -230,14 +229,7 @@ function DisplayPageContent() {
       timerStartDataRef.current = {
         startedAt: eventData.timer_started_at,
         initialSeconds: eventData.timer_seconds_remaining ?? MATCH_TIMING.INITIAL_DISPLAY_TIME,
-        matchState: eventData.match_state,
       };
-    }
-    
-    // Detect timer stop - clear captured data
-    if (!isNowRunning && wasRunning) {
-      // Timer stopped - on next start, we'll get fresh data
-      // But keep the last display until timer restarts
     }
     
     // If timer is not running and not started, reset display
